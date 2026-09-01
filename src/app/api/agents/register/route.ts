@@ -5,7 +5,7 @@ import { generateAgentToken } from '@/lib/token'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { inviteCode, name, role: bodyRole } = body
+    const { inviteCode, name, role: bodyRole, token: customToken } = body
 
     if (!inviteCode || !name) {
       return NextResponse.json({ error: 'inviteCode and name required' }, { status: 400 })
@@ -33,7 +33,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invite expired' }, { status: 410 })
     }
 
-    const token = generateAgentToken()
+    // Determine agent token: use custom if provided and valid, otherwise auto-generate
+    let token: string
+    if (customToken && typeof customToken === 'string' && customToken.trim().length >= 8) {
+      const trimmed = customToken.trim()
+      const existingToken = await db.agent.findFirst({ where: { token: trimmed } })
+      if (existingToken) {
+        return NextResponse.json({ error: 'This agent token is already taken. Choose another.' }, { status: 409 })
+      }
+      token = trimmed
+    } else {
+      token = generateAgentToken()
+    }
+
     const role = bodyRole || invite.role || 'member'
 
     const agent = await db.agent.create({

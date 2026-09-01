@@ -1,5 +1,25 @@
 # MemTrant Worklog
 
+## Task 4 — Token Choice Feature (Custom vs Auto-Generate)
+
+**Summary:** Added ability for users and agents to choose between providing a custom token or having the app auto-generate one during signup/registration.
+
+### Files Modified (4)
+
+**Backend API routes (3):**
+- `src/app/api/auth/register/route.ts` — Now accepts optional `loginToken` field. If provided (min 8 chars) and unique, uses it. Otherwise auto-generates `login_` prefixed token.
+- `src/app/api/agents/register/route.ts` — Now accepts optional `token` field. If provided (min 8 chars) and unique, uses it. Otherwise auto-generates `agt_` prefixed token.
+- `src/app/api/invites/[code]/route.ts` — POST claim for agent type now accepts optional `token` field with same custom/auto logic.
+
+**Frontend (1):**
+- `src/app/page.tsx` — Added `tokenMode` state ('auto'|'custom'). Register form now shows two toggle buttons: "🔄 Auto-Generate" (default, selected) and "✏️ Custom Token". In auto mode, no token input shown and a helper text explains the token will appear after signup. In custom mode, a text input appears for entering a custom token (min 8 chars enforced on submit). Login mode unchanged (always requires token input).
+
+### Verification
+- Backend curl tests: ✅ Auto-generate creates `login_` prefix token, ✅ Custom token stored as-is, ✅ Login with custom token works, ✅ Wrong token rejected
+- Visual browser test: ✅ Auto-Generate mode shows active toggle + no input, ✅ Custom Token mode shows active toggle + text input with placeholder
+
+---
+
 ## Task 3-b — Backend Rebuild | Agent: backend-rebuild
 
 **Date:** $(date -u +%Y-%m-%d\ %H:%M:%S) UTC

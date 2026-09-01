@@ -51,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cod
   try {
     const { code } = await params
     const body = await req.json()
-    const { name, role: bodyRole } = body
+    const { name, role: bodyRole, token: customToken } = body
 
     const invite = await db.invite.findFirst({
       where: { code },
@@ -83,7 +83,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cod
         return NextResponse.json({ error: 'Agent name required' }, { status: 400 })
       }
 
-      const token = generateAgentToken()
+      // Determine agent token: use custom if provided and valid, otherwise auto-generate
+      let token: string
+      if (customToken && typeof customToken === 'string' && customToken.trim().length >= 8) {
+        const trimmed = customToken.trim()
+        const existingToken = await db.agent.findFirst({ where: { token: trimmed } })
+        if (existingToken) {
+          return NextResponse.json({ error: 'This agent token is already taken. Choose another.' }, { status: 409 })
+        }
+        token = trimmed
+      } else {
+        token = generateAgentToken()
+      }
+
       const agentRole = bodyRole || invite.role || 'member'
 
       const agent = await db.agent.create({

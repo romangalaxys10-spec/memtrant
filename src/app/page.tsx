@@ -86,6 +86,7 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register')
   const [username, setUsername] = useState('')
   const [loginToken, setLoginToken] = useState('')
+  const [tokenMode, setTokenMode] = useState<'auto' | 'custom'>('auto')
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
 
@@ -155,15 +156,25 @@ export default function Home() {
     setAuthLoading(true)
     try {
       const endpoint = authMode === 'register' ? `${API}/api/auth/register` : `${API}/api/auth/login`
+      const body: any = { username }
+      if (authMode === 'register') {
+        // Send custom token only if user chose 'custom' mode
+        if (tokenMode === 'custom' && loginToken.trim()) {
+          body.loginToken = loginToken.trim()
+        }
+        // If auto mode, don't send loginToken — server generates it
+      } else {
+        body.loginToken = loginToken
+      }
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, loginToken }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Auth failed')
       if (authMode === 'register') {
-        setLoginTokenSaved(data.loginToken || loginToken)
+        setLoginTokenSaved(data.loginToken)
         setShowSignupModal(true)
         setView('dashboard')
         await loadTeams()
@@ -446,7 +457,7 @@ export default function Home() {
               </p>
               <div className="flex gap-4 justify-center">
                 <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                  onClick={() => { setAuthMode('register'); setView('auth') }}
+                  onClick={() => { setAuthMode('register'); setView('auth'); setTokenMode('auto'); setLoginToken('') }}
                   className="px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/25">
                   Get Started
                 </motion.button>
@@ -490,21 +501,46 @@ export default function Home() {
                     className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
                     placeholder="your-username" />
                 </div>
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Login Token</label>
-                  <input value={loginToken} onChange={e => setLoginToken(e.target.value)}
-                    type="password"
-                    className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
-                    placeholder={authMode === 'register' ? 'Choose a secure token' : 'Enter your login token'} />
-                </div>
+                {authMode === 'register' ? (
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-2">Login Token</label>
+                    <div className="flex gap-2 mb-2">
+                      <button type="button" onClick={() => { setTokenMode('auto'); setLoginToken(''); setAuthError('') }}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${tokenMode === 'auto' ? 'bg-emerald-500/20 border border-emerald-500/50 text-emerald-400' : 'glass border border-border text-zinc-400 hover:text-zinc-200'}`}>
+                        🔄 Auto-Generate
+                      </button>
+                      <button type="button" onClick={() => { setTokenMode('custom'); setAuthError('') }}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-all ${tokenMode === 'custom' ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-400' : 'glass border border-border text-zinc-400 hover:text-zinc-200'}`}>
+                        ✏️ Custom Token
+                      </button>
+                    </div>
+                    {tokenMode === 'custom' && (
+                      <input value={loginToken} onChange={e => setLoginToken(e.target.value)}
+                        type="text"
+                        className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
+                        placeholder="Enter your custom login token (min 8 chars)" />
+                    )}
+                    {tokenMode === 'auto' && (
+                      <p className="text-xs text-zinc-500">A secure token will be generated for you. You'll see it after signup.</p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs text-zinc-400 mb-1">Login Token</label>
+                    <input value={loginToken} onChange={e => setLoginToken(e.target.value)}
+                      type="password"
+                      className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
+                      placeholder="Enter your login token" />
+                  </div>
+                )}
                 {authError && <p className="text-red-400 text-sm">{authError}</p>}
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleAuth} disabled={authLoading || !username || !loginToken}
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleAuth} disabled={authLoading || !username || (authMode === 'login' && !loginToken) || (authMode === 'register' && tokenMode === 'custom' && loginToken.trim().length < 8)}
                   className="w-full py-2.5 rounded-xl font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white disabled:opacity-50">
                   {authLoading ? '...' : authMode === 'register' ? 'Create Account' : 'Sign In'}
                 </motion.button>
                 <p className="text-center text-sm text-zinc-400">
                   {authMode === 'register' ? 'Already have an account?' : 'Need an account?'}{' '}
-                  <button onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setAuthError('') }}
+                  <button onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setAuthError(''); setTokenMode('auto'); setLoginToken('') }}
                     className="text-emerald-400 hover:underline">
                     {authMode === 'register' ? 'Sign In' : 'Register'}
                   </button>

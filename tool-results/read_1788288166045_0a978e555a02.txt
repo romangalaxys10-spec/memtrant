@@ -1,0 +1,1218 @@
+     1→'use client'
+     2→
+     3→import { useState } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→
+     6→// ── Types ──────────────────────────────────────────────────────────────────
+     7→type View = 'landing' | 'auth' | 'dashboard' | 'team'
+     8→type TeamTab = 'overview' | 'agents' | 'memory' | 'instructions' | 'invites' | 'api'
+     9→type AgentRole = 'lead' | 'worker' | 'observer'
+    10→type InstructionStatus = 'pending' | 'in_progress' | 'done' | 'failed'
+    11→type InstructionPriority = 'low' | 'normal' | 'high' | 'urgent'
+    12→
+    13→// ── Interfaces ─────────────────────────────────────────────────────────────
+    14→interface Team {
+    15→  id: string; slug: string; name: string; description: string | null;
+    16→  ownerToken: string; userId: string; createdAt: string;
+    17→  fileCount?: number; totalSize?: number;
+    18→  _count?: { agents: number; instructions: number };
+    19→}
+    20→interface Agent {
+    21→  id: string; name: string; role: string; token: string; status: string;
+    22→  lastSeen: string; createdAt: string;
+    23→  _count?: { assignedInstructions: number; createdInstructions: number };
+    24→}
+    25→interface Instruction {
+    26→  id: string; title: string; content: string; status: string; priority: string;
+    27→  assigneeId: string | null; creatorId: string; teamId: string;
+    28→  createdAt: string; updatedAt: string;
+    29→  assignee?: { id: string; name: string; role: string } | null;
+    30→}
+    31→interface FileEntry { name: string; type: 'file' | 'directory'; size?: number; modified?: string }
+    32→interface Invite {
+    33→  id: string; code: string; type: string; role: string | null; status: string;
+    34→  credentials: string | null; createdAt: string; expiresAt: string | null;
+    35→  useCount: number; maxUses: number;
+    36→}
+    37→
+    38→// ── Helpers ────────────────────────────────────────────────────────────────
+    39→function formatBytes(bytes: number): string {
+    40→  if (!bytes) return '0 B';
+    41→  const k = 1024;
+    42→  const s = ['B', 'KB', 'MB', 'GB'];
+    43→  const i = Math.floor(Math.log(bytes) / Math.log(k));
+    44→  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + s[i];
+    45→}
+    46→function timeAgo(date: string): string {
+    47→  const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+    48→  if (s < 60) return 'just now';
+    49→  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+    50→  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    51→  return Math.floor(s / 86400) + 'd ago';
+    52→}
+    53→
+    54→// ── Constants ──────────────────────────────────────────────────────────────
+    55→const priorityColors: Record<string, string> = {
+    56→  low: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    57→  normal: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+    58→  high: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+    59→  urgent: 'bg-red-500/20 text-red-400 border-red-500/30',
+    60→}
+    61→const statusColors: Record<string, string> = {
+    62→  pending: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
+    63→  in_progress: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
+    64→  done: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+    65→  failed: 'bg-red-500/20 text-red-400 border-red-500/30',
+    66→}
+    67→const roleIcons: Record<string, string> = { lead: '👑', worker: '⚙️', observer: '👁️' }
+    68→const statusIcons: Record<string, string> = { idle: '🟢', working: '🔵', offline: '⚫' }
+    69→const API = ''
+    70→
+    71→const modalOverlay = {
+    72→  initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 },
+    73→  transition: { duration: 0.2 },
+    74→}
+    75→const modalContent = {
+    76→  initial: { opacity: 0, scale: 0.95, y: 10 },
+    77→  animate: { opacity: 1, scale: 1, y: 0 },
+    78→  exit: { opacity: 0, scale: 0.95, y: 10 },
+    79→  transition: { duration: 0.2 },
+    80→}
+    81→
+    82→// ── Home Component ─────────────────────────────────────────────────────────
+    83→export default function Home() {
+    84→  // View
+    85→  const [view, setView] = useState<View>('landing')
+    86→  const [authMode, setAuthMode] = useState<'login' | 'register'>('register')
+    87→  const [username, setUsername] = useState('')
+    88→  const [loginToken, setLoginToken] = useState('')
+    89→  const [authLoading, setAuthLoading] = useState(false)
+    90→  const [authError, setAuthError] = useState('')
+    91→
+    92→  // Credentials
+    93→  const [loginTokenSaved, setLoginTokenSaved] = useState('')
+    94→  const [showSignupModal, setShowSignupModal] = useState(false)
+    95→  const [savedOfflineChecked, setSavedOfflineChecked] = useState(false)
+    96→  const [copiedFeedback, setCopiedFeedback] = useState('')
+    97→
+    98→  // Teams
+    99→  const [teams, setTeams] = useState<Team[]>([])
+   100→  const [teamsLoading, setTeamsLoading] = useState(false)
+   101→
+   102→  // Team detail
+   103→  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
+   104→  const [teamTab, setTeamTab] = useState<TeamTab>('overview')
+   105→  const [agents, setAgents] = useState<Agent[]>([])
+   106→  const [instructions, setInstructions] = useState<Instruction[]>([])
+   107→  const [files, setFiles] = useState<FileEntry[]>([])
+   108→  const [teamLoading, setTeamLoading] = useState(false)
+   109→
+   110→  // Invites
+   111→  const [invites, setInvites] = useState<Invite[]>([])
+   112→  const [humanInviteResult, setHumanInviteResult] = useState<{ code: string; credentials: string; username: string; token: string } | null>(null)
+   113→
+   114→  // Memory
+   115→  const [memoryPath, setMemoryPath] = useState('')
+   116→  const [previewContent, setPreviewContent] = useState('')
+   117→  const [previewName, setPreviewName] = useState('')
+   118→
+   119→  // API snippets
+   120→  const [snippetTab, setSnippetTab] = useState<'curl' | 'python' | 'nodejs'>('curl')
+   121→
+   122→  // Dialogs
+   123→  const [showNewTeam, setShowNewTeam] = useState(false)
+   124→  const [showNewAgent, setShowNewAgent] = useState(false)
+   125→  const [showNewInstruction, setShowNewInstruction] = useState(false)
+   126→  const [showNewInviteHuman, setShowNewInviteHuman] = useState(false)
+   127→  const [showNewInviteAgent, setShowNewInviteAgent] = useState(false)
+   128→  const [showToken, setShowToken] = useState(false)
+   129→
+   130→  // Form state
+   131→  const [newTeamName, setNewTeamName] = useState('')
+   132→  const [newTeamDesc, setNewTeamDesc] = useState('')
+   133→  const [teamError, setTeamError] = useState('')
+   134→  const [newAgentName, setNewAgentName] = useState('')
+   135→  const [newAgentRole, setNewAgentRole] = useState<AgentRole>('worker')
+   136→  const [newInstTitle, setNewInstTitle] = useState('')
+   137→  const [newInstContent, setNewInstContent] = useState('')
+   138→  const [newInstPriority, setNewInstPriority] = useState<InstructionPriority>('normal')
+   139→  const [newInstAssigneeId, setNewInstAssigneeId] = useState('')
+   140→  const [inviteAgentRole, setInviteAgentRole] = useState<AgentRole>('worker')
+   141→  const [inviteExpiryHours, setInviteExpiryHours] = useState('24')
+   142→  const [inviteResult, setInviteResult] = useState<{ code: string; token: string } | null>(null)
+   143→
+   144→  // ── Helpers ──────────────────────────────────────────────────────────────
+   145→  function copyToClipboard(text: string) {
+   146→    navigator.clipboard.writeText(text).then(() => {
+   147→      setCopiedFeedback('Copied!')
+   148→      setTimeout(() => setCopiedFeedback(''), 2000)
+   149→    })
+   150→  }
+   151→
+   152→  // ── Auth ─────────────────────────────────────────────────────────────────
+   153→  async function handleAuth() {
+   154→    setAuthError('')
+   155→    setAuthLoading(true)
+   156→    try {
+   157→      const endpoint = authMode === 'register' ? `${API}/api/auth/register` : `${API}/api/auth/login`
+   158→      const res = await fetch(endpoint, {
+   159→        method: 'POST',
+   160→        headers: { 'Content-Type': 'application/json' },
+   161→        body: JSON.stringify({ username, loginToken }),
+   162→      })
+   163→      const data = await res.json()
+   164→      if (!res.ok) throw new Error(data.error || 'Auth failed')
+   165→      if (authMode === 'register') {
+   166→        setLoginTokenSaved(data.loginToken || loginToken)
+   167→        setShowSignupModal(true)
+   168→        setView('dashboard')
+   169→        await loadTeams()
+   170→      } else {
+   171→        setView('dashboard')
+   172→        await loadTeams()
+   173→      }
+   174→    } catch (e: any) {
+   175→      setAuthError(e.message)
+   176→    } finally {
+   177→      setAuthLoading(false)
+   178→    }
+   179→  }
+   180→
+   181→  async function loadTeams() {
+   182→    setTeamsLoading(true)
+   183→    try {
+   184→      const res = await fetch(`${API}/api/teams?userId=${encodeURIComponent(username)}`)
+   185→      const data = await res.json()
+   186→      setTeams(Array.isArray(data) ? data : data.teams || [])
+   187→    } catch { setTeams([]) }
+   188→    finally { setTeamsLoading(false) }
+   189→  }
+   190→
+   191→  async function handleCreateTeam() {
+   192→    setTeamError('')
+   193→    try {
+   194→      const res = await fetch(`${API}/api/teams`, {
+   195→        method: 'POST',
+   196→        headers: { 'Content-Type': 'application/json' },
+   197→        body: JSON.stringify({ name: newTeamName, description: newTeamDesc || null, userId: username }),
+   198→      })
+   199→      const data = await res.json()
+   200→      if (!res.ok) throw new Error(data.error || 'Failed to create team')
+   201→      setShowNewTeam(false)
+   202→      setNewTeamName('')
+   203→      setNewTeamDesc('')
+   204→      await loadTeams()
+   205→    } catch (e: any) {
+   206→      setTeamError(e.message)
+   207→    }
+   208→  }
+   209→
+   210→  // ── Team Detail ──────────────────────────────────────────────────────────
+   211→  async function loadTeam(slug: string) {
+   212→    setTeamLoading(true)
+   213→    setTeamTab('overview')
+   214→    setMemoryPath('')
+   215→    setPreviewContent('')
+   216→    setPreviewName('')
+   217→    setInvites([])
+   218→    setHumanInviteResult(null)
+   219→    try {
+   220→      const [teamRes, agentRes, instRes] = await Promise.all([
+   221→        fetch(`${API}/api/teams/${slug}`),
+   222→        fetch(`${API}/api/teams/${slug}/agents`),
+   223→        fetch(`${API}/api/teams/${slug}/instructions`),
+   224→      ])
+   225→      const teamData = await teamRes.json()
+   226→      setSelectedTeam(teamData)
+   227→      const agentData = await agentRes.json()
+   228→      setAgents(Array.isArray(agentData) ? agentData : [])
+   229→      const instData = await instRes.json()
+   230→      setInstructions(Array.isArray(instData) ? instData : [])
+   231→    } catch { /* ignore */ }
+   232→    finally { setTeamLoading(false) }
+   233→  }
+   234→
+   235→  function openTeam(team: Team) {
+   236→    setSelectedTeam(team)
+   237→    setView('team')
+   238→    loadTeam(team.slug)
+   239→  }
+   240→
+   241→  // ── Agents ───────────────────────────────────────────────────────────────
+   242→  async function handleAddAgent() {
+   243→    try {
+   244→      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/agents`, {
+   245→        method: 'POST',
+   246→        headers: { 'Content-Type': 'application/json' },
+   247→        body: JSON.stringify({ name: newAgentName, role: newAgentRole }),
+   248→      })
+   249→      const data = await res.json()
+   250→      if (!res.ok) throw new Error(data.error || 'Failed')
+   251→      setShowNewAgent(false)
+   252→      setNewAgentName('')
+   253→      setAgents(prev => [...prev, data])
+   254→    } catch (e: any) { alert(e.message) }
+   255→  }
+   256→
+   257→  async function removeAgent(agentId: string) {
+   258→    if (!confirm('Remove this agent?')) return
+   259→    try {
+   260→      await fetch(`${API}/api/teams/${selectedTeam!.slug}/agents/${agentId}`, { method: 'DELETE' })
+   261→      setAgents(prev => prev.filter(a => a.id !== agentId))
+   262→    } catch { /* ignore */ }
+   263→  }
+   264→
+   265→  async function updateAgentRole(agentId: string, role: string) {
+   266→    try {
+   267→      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/agents/${agentId}`, {
+   268→        method: 'PATCH',
+   269→        headers: { 'Content-Type': 'application/json' },
+   270→        body: JSON.stringify({ role }),
+   271→      })
+   272→      const data = await res.json()
+   273→      setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...data } : a))
+   274→    } catch { /* ignore */ }
+   275→  }
+   276→
+   277→  // ── Instructions ─────────────────────────────────────────────────────────
+   278→  async function handleCreateInstruction() {
+   279→    try {
+   280→      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/instructions`, {
+   281→        method: 'POST',
+   282→        headers: { 'Content-Type': 'application/json' },
+   283→        body: JSON.stringify({
+   284→          title: newInstTitle, content: newInstContent, priority: newInstPriority,
+   285→          assigneeId: newInstAssigneeId || null,
+   286→        }),
+   287→      })
+   288→      const data = await res.json()
+   289→      if (!res.ok) throw new Error(data.error || 'Failed')
+   290→      setShowNewInstruction(false)
+   291→      setNewInstTitle('')
+   292→      setNewInstContent('')
+   293→      setNewInstPriority('normal')
+   294→      setNewInstAssigneeId('')
+   295→      setInstructions(prev => [data, ...prev])
+   296→    } catch (e: any) { alert(e.message) }
+   297→  }
+   298→
+   299→  async function updateInstructionStatus(id: string, status: string) {
+   300→    try {
+   301→      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/instructions/${id}`, {
+   302→        method: 'PATCH',
+   303→        headers: { 'Content-Type': 'application/json' },
+   304→        body: JSON.stringify({ status }),
+   305→      })
+   306→      const data = await res.json()
+   307→      setInstructions(prev => prev.map(i => i.id === id ? { ...i, ...data } : i))
+   308→    } catch { /* ignore */ }
+   309→  }
+   310→
+   311→  // ── Team delete ──────────────────────────────────────────────────────────
+   312→  async function deleteTeam(slug: string) {
+   313→    if (!confirm('Delete this team? This cannot be undone.')) return
+   314→    try {
+   315→      await fetch(`${API}/api/teams/${slug}`, { method: 'DELETE' })
+   316→      setTeams(prev => prev.filter(t => t.slug !== slug))
+   317→      setView('dashboard')
+   318→    } catch { /* ignore */ }
+   319→  }
+   320→
+   321→  // ── Memory ───────────────────────────────────────────────────────────────
+   322→  async function browsePath(path: string) {
+   323→    setMemoryPath(path)
+   324→    setPreviewContent('')
+   325→    setPreviewName('')
+   326→    try {
+   327→      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files/${encodeURIComponent(path)}`)
+   328→      const data = await res.json()
+   329→      setFiles(Array.isArray(data) ? data : data.files || [])
+   330→    } catch { setFiles([]) }
+   331→  }
+   332→
+   333→  async function previewFile(fileName: string) {
+   334→    const fullPath = memoryPath ? `${memoryPath}/${fileName}` : fileName
+   335→    setPreviewName(fullPath)
+   336→    try {
+   337→      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files/${encodeURIComponent(fullPath)}`)
+   338→      const text = await res.text()
+   339→      setPreviewContent(typeof text === 'string' ? text : JSON.stringify(text, null, 2))
+   340→    } catch { setPreviewContent('Failed to load file.') }
+   341→  }
+   342→
+   343→  // ── Invites ──────────────────────────────────────────────────────────────
+   344→  async function loadInvites(slug: string) {
+   345→    try {
+   346→      const res = await fetch(`${API}/api/teams/${slug}/invites`, {
+   347→        headers: { Authorization: `Bearer ${selectedTeam?.ownerToken}` },
+   348→      })
+   349→      const data = await res.json()
+   350→      setInvites(Array.isArray(data) ? data : data.invites || [])
+   351→    } catch { setInvites([]) }
+   352→  }
+   353→
+   354→  async function handleCreateInvite(type: 'agent' | 'human') {
+   355→    if (type === 'human') setShowNewInviteHuman(true)
+   356→    try {
+   357→      const body: any = { type }
+   358→      if (type === 'agent') {
+   359→        body.role = inviteAgentRole
+   360→        if (inviteExpiryHours) body.expiresIn = parseInt(inviteExpiryHours) * 3600
+   361→      }
+   362→      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/invites`, {
+   363→        method: 'POST',
+   364→        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selectedTeam!.ownerToken}` },
+   365→        body: JSON.stringify(body),
+   366→      })
+   367→      const data = await res.json()
+   368→      if (!res.ok) throw new Error(data.error || 'Failed')
+   369→      if (type === 'human' && data.credentials) {
+   370→        let creds: any = data.credentials
+   371→        if (typeof creds === 'string') { try { creds = JSON.parse(creds) } catch { creds = { username: '', loginToken: creds } } }
+   372→        setHumanInviteResult({
+   373→          code: data.code,
+   374→          credentials: typeof data.credentials === 'string' ? data.credentials : JSON.stringify(data.credentials),
+   375→          username: creds.username || '',
+   376→          token: creds.loginToken || creds.token || '',
+   377→        })
+   378→      } else if (type === 'agent') {
+   379→        setInviteResult({ code: data.code, token: data.token || data.agentToken || '' })
+   380→      }
+   381→      setShowNewInviteAgent(false)
+   382→      setShowNewInviteHuman(false)
+   383→      await loadInvites(selectedTeam!.slug)
+   384→    } catch (e: any) { alert(e.message); setShowNewInviteHuman(false) }
+   385→  }
+   386→
+   387→  // ── Download helper ──────────────────────────────────────────────────────
+   388→  function downloadAsFile(content: string, filename: string) {
+   389→    const blob = new Blob([content], { type: 'text/plain' })
+   390→    const url = URL.createObjectURL(blob)
+   391→    const a = document.createElement('a')
+   392→    a.href = url; a.download = filename; a.click()
+   393→    URL.revokeObjectURL(url)
+   394→  }
+   395→
+   396→  // ── Team tabs ────────────────────────────────────────────────────────────
+   397→  const tabItems: { key: TeamTab; label: string; icon: string }[] = [
+   398→    { key: 'overview', label: 'Overview', icon: '📊' },
+   399→    { key: 'agents', label: 'Agents', icon: '🤖' },
+   400→    { key: 'memory', label: 'Memory', icon: '🧠' },
+   401→    { key: 'instructions', label: 'Instructions', icon: '📋' },
+   402→    { key: 'invites', label: 'Invites', icon: '🔗' },
+   403→    { key: 'api', label: 'API', icon: '⚡' },
+   404→  ]
+   405→
+   406→  // ── API Snippets ─────────────────────────────────────────────────────────
+   407→  const teamSlug = selectedTeam?.slug || 'my-team'
+   408→  const apiSnippets: Record<string, string> = {
+   409→    curl: `# Store files\n curl -X PUT \\
+   410→   ${API}/api/t/${teamSlug}/memory/context.md \\
+   411→   -H "Authorization: Bearer <AGENT_TOKEN>" \\
+   412→   -d "Shared context for the team"\n\n# Read files\n curl ${API}/api/t/${teamSlug}/memory/context.md \\
+   413→   -H "Authorization: Bearer <AGENT_TOKEN>"\n\n# Browse directory\n curl ${API}/api/t/${teamSlug}/memory/ \\
+   414→   -H "Authorization: Bearer <AGENT_TOKEN>"\n\n# Create instruction\n curl -X POST ${API}/api/teams/${teamSlug}/instructions \\
+   415→   -H "Authorization: Bearer <AGENT_TOKEN>" \\
+   416→   -H "Content-Type: application/json" \\
+   417→   -d '{"title":"Task","content":"Do something","priority":"normal"}'`,
+   418→    python: `import requests\n\nBASE = "${API}"\nHEADERS = {"Authorization": "Bearer <AGENT_TOKEN>"}\n\n# Store file\nrequests.put(f"{BASE}/api/t/${teamSlug}/memory/context.md",\n    headers=HEADERS, data="Shared context")\n\n# Read file\nr = requests.get(f"{BASE}/api/t/${teamSlug}/memory/context.md",\n    headers=HEADERS)\nprint(r.text)\n\n# Browse directory\nr = requests.get(f"{BASE}/api/t/${teamSlug}/memory/",\n    headers=HEADERS)\nprint(r.json())\n\n# Create instruction\nrequests.post(f"{BASE}/api/teams/${teamSlug}/instructions",\n    headers={**HEADERS, "Content-Type": "application/json"},\n    json={"title":"Task","content":"Do something","priority":"normal"})`,
+   419→    nodejs: `const BASE = "${API}";\nconst HEADERS = { Authorization: "Bearer <AGENT_TOKEN>" };\n\n// Store file\nawait fetch(\`\${BASE}/api/t/${teamSlug}/memory/context.md\`, {\n  method: "PUT", headers: HEADERS, body: "Shared context"\n});\n\n// Read file\nconst r = await fetch(\`\${BASE}/api/t/${teamSlug}/memory/context.md\`, { headers: HEADERS });\nconsole.log(await r.text());\n\n// Browse directory\nconst d = await fetch(\`\${BASE}/api/t/${teamSlug}/memory/\`, { headers: HEADERS });\nconsole.log(await d.json());\n\n// Create instruction\nawait fetch(\`\${BASE}/api/teams/${teamSlug}/instructions\`, {\n  method: "POST",\n  headers: { ...HEADERS, "Content-Type": "application/json" },\n  body: JSON.stringify({ title: "Task", content: "Do something", priority: "normal" })\n});`,
+   420→  }
+   421→
+   422→  // ══════════════════════════════════════════════════════════════════════════
+   423→  // RENDER
+   424→  // ══════════════════════════════════════════════════════════════════════════
+   425→  return (
+   426→    <div className="dark min-h-screen flex flex-col bg-[#09090b] text-zinc-100">
+   427→      <main className="flex-1 flex flex-col">
+   428→
+   429→        {/* ════════════ LANDING ════════════ */}
+   430→        {view === 'landing' && (
+   431→          <section className="flex-1 flex flex-col items-center justify-center p-8 relative overflow-hidden">
+   432→            {/* Gradient blobs */}
+   433→            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-[120px]" />
+   434→            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-[120px]" />
+   435→
+   436→            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="relative z-10 text-center">
+   437→              <div className="text-6xl mb-4">🧠</div>
+   438→              <h1 className="text-5xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-4">
+   439→                MemTrant
+   440→              </h1>
+   441→              <p className="text-zinc-400 text-lg max-w-md mx-auto mb-2">
+   442→                Transit Memory Server for AI Agent Teams
+   443→              </p>
+   444→              <p className="text-zinc-500 text-sm max-w-sm mx-auto mb-10">
+   445→                Shared memory, task coordination, and file storage — the backbone your agents need to collaborate effectively.
+   446→              </p>
+   447→              <div className="flex gap-4 justify-center">
+   448→                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+   449→                  onClick={() => { setAuthMode('register'); setView('auth') }}
+   450→                  className="px-6 py-3 rounded-xl font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/25">
+   451→                  Get Started
+   452→                </motion.button>
+   453→                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+   454→                  onClick={() => { setAuthMode('login'); setView('auth') }}
+   455→                  className="px-6 py-3 rounded-xl font-medium glass border border-zinc-700/50 text-zinc-300 hover:text-white">
+   456→                  Sign In
+   457→                </motion.button>
+   458→              </div>
+   459→            </motion.div>
+   460→
+   461→            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }} className="relative z-10 mt-16 grid grid-cols-3 gap-4 max-w-2xl w-full">
+   462→              {[
+   463→                { icon: '🧠', title: 'Shared Memory', desc: 'File-based storage agents can read & write' },
+   464→                { icon: '📋', title: 'Instructions', desc: 'Create, assign, and track tasks' },
+   465→                { icon: '🔗', title: 'Invite System', desc: 'Add agents and humans to your team' },
+   466→              ].map((f, i) => (
+   467→                <div key={i} className="glass rounded-xl p-4 text-center">
+   468→                  <div className="text-2xl mb-2">{f.icon}</div>
+   469→                  <div className="text-sm font-medium text-zinc-200">{f.title}</div>
+   470→                  <div className="text-xs text-zinc-500 mt-1">{f.desc}</div>
+   471→                </div>
+   472→              ))}
+   473→            </motion.div>
+   474→          </section>
+   475→        )}
+   476→
+   477→        {/* ════════════ AUTH ════════════ */}
+   478→        {view === 'auth' && (
+   479→          <section className="flex-1 flex items-center justify-center p-4">
+   480→            <motion.div {...modalContent} className="glass rounded-2xl p-8 w-full max-w-md">
+   481→              <div className="text-center mb-6">
+   482→                <div className="text-3xl mb-2">🧠</div>
+   483→                <h2 className="text-2xl font-bold text-zinc-100">{authMode === 'register' ? 'Create Account' : 'Sign In'}</h2>
+   484→                <p className="text-zinc-400 text-sm mt-1">MemTrant — Agent Team Memory Server</p>
+   485→              </div>
+   486→              <div className="space-y-4">
+   487→                <div>
+   488→                  <label className="block text-xs text-zinc-400 mb-1">Username</label>
+   489→                  <input value={username} onChange={e => setUsername(e.target.value)}
+   490→                    className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
+   491→                    placeholder="your-username" />
+   492→                </div>
+   493→                <div>
+   494→                  <label className="block text-xs text-zinc-400 mb-1">Login Token</label>
+   495→                  <input value={loginToken} onChange={e => setLoginToken(e.target.value)}
+   496→                    type="password"
+   497→                    className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
+   498→                    placeholder={authMode === 'register' ? 'Choose a secure token' : 'Enter your login token'} />
+   499→                </div>
+   500→                {authError && <p className="text-red-400 text-sm">{authError}</p>}
+   501→                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleAuth} disabled={authLoading || !username || !loginToken}
+   502→                  className="w-full py-2.5 rounded-xl font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white disabled:opacity-50">
+   503→                  {authLoading ? '...' : authMode === 'register' ? 'Create Account' : 'Sign In'}
+   504→                </motion.button>
+   505→                <p className="text-center text-sm text-zinc-400">
+   506→                  {authMode === 'register' ? 'Already have an account?' : 'Need an account?'}{' '}
+   507→                  <button onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setAuthError('') }}
+   508→                    className="text-emerald-400 hover:underline">
+   509→                    {authMode === 'register' ? 'Sign In' : 'Register'}
+   510→                  </button>
+   511→                </p>
+   512→              </div>
+   513→            </motion.div>
+   514→          </section>
+   515→        )}
+   516→
+   517→        {/* ════════════ DASHBOARD ════════════ */}
+   518→        {view === 'dashboard' && (
+   519→          <section className="flex-1 p-4 max-w-4xl mx-auto w-full">
+   520→            <header className="flex items-center justify-between mb-6">
+   521→              <div className="flex items-center gap-3">
+   522→                <span className="text-2xl">🧠</span>
+   523→                <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">MemTrant</h1>
+   524→              </div>
+   525→              <div className="flex items-center gap-2">
+   526→                <span className="text-sm text-zinc-400">{username}</span>
+   527→                <button onClick={() => setView('landing')} className="text-xs text-zinc-500 hover:text-zinc-300">Logout</button>
+   528→              </div>
+   529→            </header>
+   530→
+   531→            <div className="flex items-center justify-between mb-4">
+   532→              <h2 className="text-lg font-semibold text-zinc-200">Your Teams</h2>
+   533→              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+   534→                onClick={() => { setNewTeamName(''); setNewTeamDesc(''); setTeamError(''); setShowNewTeam(true) }}
+   535→                className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+   536→                + New Team
+   537→              </motion.button>
+   538→            </div>
+   539→
+   540→            {teamsLoading ? (
+   541→              <div className="text-center text-zinc-500 py-12">Loading teams...</div>
+   542→            ) : teams.length === 0 ? (
+   543→              <div className="glass rounded-2xl p-12 text-center">
+   544→                <div className="text-4xl mb-3">📭</div>
+   545→                <p className="text-zinc-400">No teams yet. Create your first team to get started.</p>
+   546→              </div>
+   547→            ) : (
+   548→              <div className="grid gap-3">
+   549→                {teams.map(team => (
+   550→                  <motion.div key={team.id} whileHover={{ scale: 1.01 }}
+   551→                    onClick={() => openTeam(team)}
+   552→                    className="glass glass-hover rounded-xl p-4 flex items-center justify-between cursor-pointer">
+   553→                    <div>
+   554→                      <h3 className="font-medium text-zinc-100">{team.name}</h3>
+   555→                      <p className="text-xs text-zinc-500 mt-0.5">{team.description || 'No description'} · {team.slug}</p>
+   556→                    </div>
+   557→                    <div className="flex items-center gap-4 text-xs text-zinc-400">
+   558→                      {team._count && <span>🤖 {team._count.agents}</span>}
+   559→                      {team._count && <span>📋 {team._count.instructions}</span>}
+   560→                      <span>{timeAgo(team.createdAt)}</span>
+   561→                    </div>
+   562→                  </motion.div>
+   563→                ))}
+   564→              </div>
+   565→            )}
+   566→          </section>
+   567→        )}
+   568→
+   569→        {/* ════════════ TEAM DETAIL ════════════ */}
+   570→        {view === 'team' && selectedTeam && (
+   571→          <section className="flex-1 flex flex-col max-w-6xl mx-auto w-full">
+   572→            {/* Team header */}
+   573→            <header className="p-4 border-b border-border flex items-center justify-between">
+   574→              <div className="flex items-center gap-3">
+   575→                <button onClick={() => setView('dashboard')} className="text-zinc-400 hover:text-zinc-100 text-sm">← Back</button>
+   576→                <div>
+   577→                  <h1 className="text-xl font-bold text-zinc-100">{selectedTeam.name}</h1>
+   578→                  <p className="text-xs text-zinc-500">/{selectedTeam.slug}</p>
+   579→                </div>
+   580→              </div>
+   581→              <div className="flex items-center gap-2">
+   582→                <button onClick={() => setShowToken(true)} className="text-xs glass rounded-lg px-3 py-1.5 text-zinc-400 hover:text-zinc-200">
+   583→                  🔑 Token
+   584→                </button>
+   585→                <button onClick={() => deleteTeam(selectedTeam.slug)}
+   586→                  className="text-xs glass rounded-lg px-3 py-1.5 text-red-400 hover:text-red-300">
+   587→                  Delete
+   588→                </button>
+   589→              </div>
+   590→            </header>
+   591→
+   592→            {/* Tabs */}
+   593→            <nav className="px-4 pt-3 flex gap-1 border-b border-border overflow-x-auto">
+   594→              {tabItems.map(t => (
+   595→                <button key={t.key} onClick={() => {
+   596→                  setTeamTab(t.key)
+   597→                  if (t.key === 'memory' && !memoryPath && files.length === 0) browsePath('')
+   598→                  if (t.key === 'invites' && invites.length === 0) loadInvites(selectedTeam.slug)
+   599→                }}
+   600→                  className={`px-4 py-2.5 text-sm whitespace-nowrap border-b-2 transition-colors ${
+   601→                    teamTab === t.key
+   602→                      ? 'border-emerald-400 text-emerald-400'
+   603→                      : 'border-transparent text-zinc-400 hover:text-zinc-200'
+   604→                  }`}>
+   605→                  <span className="mr-1.5">{t.icon}</span>{t.label}
+   606→                </button>
+   607→              ))}
+   608→            </nav>
+   609→
+   610→            {/* Tab content */}
+   611→            <div className="flex-1 p-4 overflow-auto">
+   612→              {teamLoading ? <div className="text-center text-zinc-500 py-12">Loading...</div> : (
+   613→                <>
+   614→                  {/* ── OVERVIEW ── */}
+   615→                  {teamTab === 'overview' && (
+   616→                    <div className="space-y-6">
+   617→                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   618→                        {[
+   619→                          { label: 'Agents', value: agents.length, icon: '🤖' },
+   620→                          { label: 'Instructions', value: instructions.length, icon: '📋' },
+   621→                          { label: 'Files', value: selectedTeam.fileCount || 0, icon: '📁' },
+   622→                          { label: 'Storage', value: formatBytes(selectedTeam.totalSize || 0), icon: '💾' },
+   623→                        ].map((s, i) => (
+   624→                          <div key={i} className="glass rounded-xl p-4">
+   625→                            <div className="text-xs text-zinc-500 mb-1">{s.icon} {s.label}</div>
+   626→                            <div className="text-2xl font-bold text-zinc-100">{s.value}</div>
+   627→                          </div>
+   628→                        ))}
+   629→                      </div>
+   630→                      <div className="glass rounded-xl p-4">
+   631→                        <h3 className="text-sm font-medium text-zinc-300 mb-2">Description</h3>
+   632→                        <p className="text-sm text-zinc-400">{selectedTeam.description || 'No description set.'}</p>
+   633→                      </div>
+   634→                      <div className="glass rounded-xl p-4">
+   635→                        <h3 className="text-sm font-medium text-zinc-300 mb-2">Team Lead</h3>
+   636→                        {agents.find(a => a.role === 'lead')
+   637→                          ? <p className="text-sm text-zinc-400">👑 {agents.find(a => a.role === 'lead')!.name}</p>
+   638→                          : <p className="text-sm text-zinc-500">No lead assigned.</p>}
+   639→                      </div>
+   640→                      <div className="glass rounded-xl p-4">
+   641→                        <h3 className="text-sm font-medium text-zinc-300 mb-3">Recent Instructions</h3>
+   642→                        {instructions.length === 0
+   643→                          ? <p className="text-sm text-zinc-500">No instructions yet.</p>
+   644→                          : <div className="space-y-2">{instructions.slice(0, 5).map(inst => (
+   645→                            <div key={inst.id} className="flex items-center justify-between text-sm">
+   646→                              <span className="text-zinc-300">{inst.title}</span>
+   647→                              <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColors[inst.status] || statusColors.pending}`}>{inst.status}</span>
+   648→                            </div>
+   649→                          ))}</div>}
+   650→                      </div>
+   651→                    </div>
+   652→                  )}
+   653→
+   654→                  {/* ── AGENTS ── */}
+   655→                  {teamTab === 'agents' && (
+   656→                    <div>
+   657→                      <div className="flex items-center justify-between mb-4">
+   658→                        <h2 className="text-lg font-semibold text-zinc-200">Agents ({agents.length})</h2>
+   659→                        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+   660→                          onClick={() => { setNewAgentName(''); setNewAgentRole('worker'); setShowNewAgent(true) }}
+   661→                          className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+   662→                          + Add Agent
+   663→                        </motion.button>
+   664→                      </div>
+   665→                      {agents.length === 0
+   666→                        ? <div className="glass rounded-2xl p-12 text-center text-zinc-500">No agents yet.</div>
+   667→                        : <div className="space-y-2">{agents.map(a => (
+   668→                          <div key={a.id} className="glass rounded-xl p-4 flex items-center justify-between">
+   669→                            <div className="flex items-center gap-3">
+   670→                              <span className="text-lg">{roleIcons[a.role] || '🤖'}</span>
+   671→                              <div>
+   672→                                <div className="font-medium text-zinc-100">{a.name}</div>
+   673→                                <div className="text-xs text-zinc-500">{a.role} · {timeAgo(a.lastSeen)}</div>
+   674→                              </div>
+   675→                            </div>
+   676→                            <div className="flex items-center gap-2">
+   677→                              <span className="text-sm">{statusIcons[a.status] || '⚫'}</span>
+   678→                              <select value={a.role} onChange={e => updateAgentRole(a.id, e.target.value)}
+   679→                className="bg-input border border-border text-xs rounded-lg px-2 py-1 text-zinc-300 focus:outline-none">
+   680→                <option value="worker">Worker</option>
+   681→                <option value="observer">Observer</option>
+   682→                <option value="lead">Lead</option>
+   683→              </select>
+   684→              <button onClick={() => removeAgent(a.id)} className="text-xs text-red-400 hover:text-red-300">Remove</button>
+   685→            </div>
+   686→          </div>
+   687→        ))}</div>}
+   688→                    </div>
+   689→                  )}
+   690→
+   691→                  {/* ── MEMORY ── */}
+   692→                  {teamTab === 'memory' && (
+   693→                    <div className="space-y-4">
+   694→                      <div className="flex items-center justify-between">
+   695→                        <div className="flex items-center gap-2 text-sm text-zinc-300">
+   696→                          <span className="text-zinc-500">Path:</span>
+   697→                          <span className="font-mono text-xs text-emerald-400">/{memoryPath || 'root'}</span>
+   698→                        </div>
+   699→                        <button onClick={() => browsePath('')} className="text-xs text-zinc-400 hover:text-zinc-200">Root</button>
+   700→                      </div>
+   701→                      {files.length === 0 && !memoryPath && <div className="glass rounded-2xl p-12 text-center text-zinc-500">Memory is empty. Agents can write files here via API.</div>}
+   702→                      {files.length > 0 && (
+   703→                        <div className="glass rounded-xl divide-y divide-border">
+   704→                          {memoryPath && (
+   705→                            <button onClick={() => browsePath(memoryPath.split('/').slice(0, -1).join('/'))}
+   706→                              className="w-full px-4 py-3 text-left text-sm text-zinc-400 hover:text-zinc-200 flex items-center gap-2">
+   707→                              <span>⬆️</span> ..
+   708→                            </button>
+   709→                          )}
+   710→                          {files.map((f, i) => (
+   711→                            <button key={i} onClick={() => f.type === 'directory' ? browsePath(memoryPath ? `${memoryPath}/${f.name}` : f.name) : previewFile(f.name)}
+   712→                              className="w-full px-4 py-3 text-left text-sm hover:bg-white/5 flex items-center justify-between">
+   713→                              <span className={`flex items-center gap-2 ${f.type === 'directory' ? 'text-zinc-200' : 'text-zinc-400'}`}>
+   714→                                <span>{f.type === 'directory' ? '📁' : '📄'}</span> {f.name}
+   715→                              </span>
+   716→                              {f.size != null && <span className="text-xs text-zinc-500">{formatBytes(f.size)}</span>}
+   717→                            </button>
+   718→                          ))}
+   719→                        </div>
+   720→                      )}
+   721→                      {previewName && (
+   722→                        <div className="glass rounded-xl p-4">
+   723→                          <div className="flex items-center justify-between mb-2">
+   724→                            <span className="text-sm font-medium text-zinc-300">📄 {previewName}</span>
+   725→                            <button onClick={() => { setPreviewContent(''); setPreviewName('') }} className="text-xs text-zinc-500 hover:text-zinc-300">Close</button>
+   726→                          </div>
+   727→                          <pre className="bg-black/40 rounded-lg p-4 text-xs text-zinc-300 overflow-auto max-h-96 font-mono whitespace-pre-wrap">{previewContent}</pre>
+   728→                        </div>
+   729→                      )}
+   730→                    </div>
+   731→                  )}
+   732→
+   733→                  {/* ── INSTRUCTIONS ── */}
+   734→                  {teamTab === 'instructions' && (
+   735→                    <div>
+   736→                      <div className="flex items-center justify-between mb-4">
+   737→                        <h2 className="text-lg font-semibold text-zinc-200">Instructions ({instructions.length})</h2>
+   738→                        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+   739→                          onClick={() => { setNewInstTitle(''); setNewInstContent(''); setNewInstPriority('normal'); setNewInstAssigneeId(''); setShowNewInstruction(true) }}
+   740→                          className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+   741→                          + New Instruction
+   742→                        </motion.button>
+   743→                      </div>
+   744→                      {instructions.length === 0
+   745→                        ? <div className="glass rounded-2xl p-12 text-center text-zinc-500">No instructions yet.</div>
+   746→                        : <div className="space-y-2">{instructions.map(inst => (
+   747→                          <div key={inst.id} className="glass rounded-xl p-4">
+   748→                            <div className="flex items-start justify-between mb-2">
+   749→                              <div>
+   750→                                <h3 className="font-medium text-zinc-100">{inst.title}</h3>
+   751→                                <p className="text-xs text-zinc-500 mt-0.5">
+   752→                                  {inst.assignee ? `→ ${inst.assignee.name}` : 'Unassigned'} · {timeAgo(inst.createdAt)}
+   753→                                </p>
+   754→                              </div>
+   755→                              <div className="flex items-center gap-2">
+   756→                                <span className={`text-xs px-2 py-0.5 rounded-full border ${priorityColors[inst.priority] || priorityColors.normal}`}>{inst.priority}</span>
+   757→                                <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColors[inst.status] || statusColors.pending}`}>{inst.status}</span>
+   758→                              </div>
+   759→                            </div>
+   760→                            <p className="text-sm text-zinc-400 mb-3">{inst.content}</p>
+   761→                            <div className="flex gap-1.5">
+   762→                              {(['pending', 'in_progress', 'done', 'failed'] as InstructionStatus[]).map(s => (
+   763→                                <button key={s} onClick={() => updateInstructionStatus(inst.id, s)}
+   764→                                  className={`text-xs px-2 py-1 rounded-lg border transition-colors ${inst.status === s ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400' : 'border-border text-zinc-500 hover:text-zinc-300'}`}>
+   765→                                  {s}
+   766→                                </button>
+   767→                              ))}
+   768→                            </div>
+   769→                          </div>
+   770→                        ))}</div>}
+   771→                    </div>
+   772→                  )}
+   773→
+   774→                  {/* ── INVITES ── */}
+   775→                  {teamTab === 'invites' && (
+   776→                    <div>
+   777→                      <div className="flex items-center justify-between mb-4">
+   778→                        <h2 className="text-lg font-semibold text-zinc-200">Invites ({invites.length})</h2>
+   779→                        <div className="flex gap-2">
+   780→                          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+   781→                            onClick={() => { setInviteAgentRole('worker'); setInviteExpiryHours('24'); setInviteResult(null); setShowNewInviteAgent(true) }}
+   782→                            className="px-4 py-2 rounded-lg text-sm font-medium glass border border-border text-zinc-300 hover:text-white">
+   783→                            + Invite Agent
+   784→                          </motion.button>
+   785→                          <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+   786→                            onClick={() => { setHumanInviteResult(null); handleCreateInvite('human') }}
+   787→                            className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+   788→                            + Invite Human
+   789→                          </motion.button>
+   790→                        </div>
+   791→                      </div>
+   792→                      {invites.length === 0
+   793→                        ? <div className="glass rounded-2xl p-12 text-center text-zinc-500">No invites yet.</div>
+   794→                        : <div className="space-y-2">{invites.map(inv => (
+   795→                          <div key={inv.id} className="glass rounded-xl p-4 flex items-center justify-between">
+   796→                            <div className="flex items-center gap-3">
+   797→                              <span className={`text-xs px-2 py-0.5 rounded-full border ${inv.type === 'human' ? 'bg-violet-500/20 text-violet-400 border-violet-500/30' : 'bg-sky-500/20 text-sky-400 border-sky-500/30'}`}>
+   798→                                {inv.type}
+   799→                              </span>
+   800→                              <div>
+   801→                                <div className="flex items-center gap-2">
+   802→                                  <code className="text-xs font-mono text-emerald-400" onClick={() => copyToClipboard(inv.code)} title="Click to copy">{inv.code.slice(0, 12)}...</code>
+   803→                                </div>
+   804→                                <div className="text-xs text-zinc-500 mt-0.5">
+   805→                                  {inv.role && <span>Role: {inv.role} · </span>}
+   806→                                  {timeAgo(inv.createdAt)}
+   807→                                  {inv.expiresAt && <span> · Exp: {new Date(inv.expiresAt).toLocaleDateString()}</span>}
+   808→                                </div>
+   809→                              </div>
+   810→                            </div>
+   811→                            <div className="flex items-center gap-2">
+   812→                              <span className={`text-xs px-2 py-0.5 rounded-full border ${
+   813→                                inv.status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+   814→                                  : inv.status === 'used' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+   815→                                  : 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30'}`}>
+   816→                                {inv.status}
+   817→                              </span>
+   818→                              <span className="text-xs text-zinc-500">{inv.useCount}/{inv.maxUses || '∞'}</span>
+   819→                              {inv.type === 'human' && inv.credentials && (
+   820→                                <button onClick={() => {
+   821→                                  let creds = inv.credentials
+   822→                                  if (typeof creds === 'string') { try { creds = JSON.parse(creds) } catch {} }
+   823→                                  setHumanInviteResult({
+   824→                                    code: inv.code,
+   825→                                    credentials: typeof creds === 'string' ? creds : JSON.stringify(creds, null, 2),
+   826→                                    username: (creds as any).username || '',
+   827→                                    token: (creds as any).loginToken || (creds as any).token || '',
+   828→                                  })
+   829→                                }} className="text-xs text-violet-400 hover:text-violet-300">
+   830→                                  View Credentials
+   831→                                </button>
+   832→                              )}
+   833→                            </div>
+   834→                          </div>
+   835→                        ))}</div>}
+   836→                    </div>
+   837→                  )}
+   838→
+   839→                  {/* ── API ── */}
+   840→                  {teamTab === 'api' && (
+   841→                    <div className="space-y-4">
+   842→                      <h2 className="text-lg font-semibold text-zinc-200">API Reference</h2>
+   843→                      <div className="glass rounded-xl overflow-hidden">
+   844→                        <table className="w-full text-sm">
+   845→                          <thead><tr className="border-b border-border">
+   846→                            <th className="text-left px-4 py-2 text-zinc-400 font-medium">Method</th>
+   847→                            <th className="text-left px-4 py-2 text-zinc-400 font-medium">Endpoint</th>
+   848→                            <th className="text-left px-4 py-2 text-zinc-400 font-medium">Description</th>
+   849→                          </tr></thead>
+   850→                          <tbody className="divide-y divide-border">
+   851→                            {[
+   852→                              ['PUT', `/api/t/${teamSlug}/memory/<path>`, 'Store/update a file'],
+   853→                              ['GET', `/api/t/${teamSlug}/memory/<path>`, 'Read a file or browse directory'],
+   854→                              ['DELETE', `/api/t/${teamSlug}/memory/<path>`, 'Delete a file'],
+   855→                              ['POST', `/api/teams/${teamSlug}/instructions`, 'Create instruction'],
+   856→                              ['GET', `/api/teams/${teamSlug}/instructions`, 'List instructions'],
+   857→                              ['PATCH', `/api/teams/${teamSlug}/instructions/:id`, 'Update instruction'],
+   858→                              ['GET', `/api/teams/${teamSlug}/agents`, 'List agents'],
+   859→                              ['POST', `/api/teams/${teamSlug}/invites`, 'Create invite'],
+   860→                              ['GET', `/api/teams/${teamSlug}/invites`, 'List invites'],
+   861→                            ].map(([m, ep, desc], i) => (
+   862→                              <tr key={i}>
+   863→                                <td className="px-4 py-2"><span className={`text-xs px-1.5 py-0.5 rounded font-mono ${m === 'GET' ? 'bg-emerald-500/20 text-emerald-400' : m === 'POST' ? 'bg-sky-500/20 text-sky-400' : m === 'PATCH' ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}`}>{m}</span></td>
+   864→                                <td className="px-4 py-2 font-mono text-xs text-zinc-300">{ep}</td>
+   865→                                <td className="px-4 py-2 text-zinc-400">{desc}</td>
+   866→                              </tr>
+   867→                            ))}
+   868→                          </tbody>
+   869→                        </table>
+   870→                      </div>
+   871→                      <div className="glass rounded-xl p-4">
+   872→                        <div className="flex gap-1 mb-3">
+   873→                          {(['curl', 'python', 'nodejs'] as const).map(t => (
+   874→                            <button key={t} onClick={() => setSnippetTab(t)}
+   875→                              className={`px-3 py-1.5 rounded-lg text-xs font-medium ${snippetTab === t ? 'bg-emerald-500/20 text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'}`}>
+   876→                              {t}
+   877→                            </button>
+   878→                          ))}
+   879→                        </div>
+   880→                        <pre className="bg-black/40 rounded-lg p-4 text-xs text-zinc-300 overflow-auto max-h-96 font-mono whitespace-pre-wrap">{apiSnippets[snippetTab]}</pre>
+   881→                      </div>
+   882→                    </div>
+   883→                  )}
+   884→                </>
+   885→              )}
+   886→            </div>
+   887→          </section>
+   888→        )}
+   889→      </main>
+   890→
+   891→      {/* ════════════ FOOTER ════════════ */}
+   892→      <footer className="mt-auto glass border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
+   893→        MemTrant — Transit Memory Server for AI Agent Teams
+   894→      </footer>
+   895→
+   896→      {/* ════════════════════════════════════════════════════════════════════════
+   897→          MODALS
+   898→         ════════════════════════════════════════════════════════════════════════ */}
+   899→
+   900→      {/* ── Signup Modal ── */}
+   901→      <AnimatePresence>
+   902→        {showSignupModal && (
+   903→          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
+   904→            <motion.div {...modalContent} className="glass rounded-2xl p-8 w-full max-w-md relative">
+   905→              <h2 className="text-xl font-bold text-zinc-100 mb-1">Account Created!</h2>
+   906→              <p className="text-sm text-zinc-400 mb-4">Save your credentials now. They will not be shown again.</p>
+   907→              <div className="space-y-3 mb-4">
+   908→                <div className="bg-black/40 rounded-lg p-3">
+   909→                  <div className="text-xs text-zinc-500 mb-1">Username</div>
+   910→                  <div className="font-mono text-sm text-emerald-400 break-all">{username}</div>
+   911→                </div>
+   912→                <div className="bg-black/40 rounded-lg p-3">
+   913→                  <div className="text-xs text-zinc-500 mb-1">Login Token</div>
+   914→                  <div className="font-mono text-sm text-emerald-400 break-all select-all">{loginTokenSaved}</div>
+   915→                </div>
+   916→              </div>
+   917→              <div className="flex gap-2 mb-4">
+   918→                <button onClick={() => {
+   919→                  copyToClipboard(`Username: ${username}\nLogin Token: ${loginTokenSaved}`)
+   920→                }} className="flex-1 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+   921→                  {copiedFeedback || 'Copy to Clipboard'}
+   922→                </button>
+   923→                <button onClick={() => downloadAsFile(`Username: ${username}\nLogin Token: ${loginTokenSaved}\n`, 'memtrant-credentials.txt')}
+   924→                  className="flex-1 py-2 rounded-lg text-sm font-medium glass border border-border text-zinc-300">
+   925→                  Download as File
+   926→                </button>
+   927→              </div>
+   928→              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
+   929→                <p className="text-sm font-medium text-red-400 mb-1.5">⚠️ Do NOT close this window until you've saved your credentials!</p>
+   930→                <ul className="text-xs text-red-300/70 space-y-1 list-disc list-inside">
+   931→                  <li>There is no password recovery</li>
+   932→                  <li>Losing your token means losing access</li>
+   933→                  <li>Store it in a secure password manager</li>
+   934→                </ul>
+   935→              </div>
+   936→              <label className="flex items-start gap-2 mb-4 cursor-pointer">
+   937→                <input type="checkbox" checked={savedOfflineChecked} onChange={e => setSavedOfflineChecked(e.target.checked)}
+   938→                  className="mt-0.5 accent-emerald-500" />
+   939→                <span className="text-sm text-zinc-400">I have saved my username and login token offline and understand I cannot recover them.</span>
+   940→              </label>
+   941→              <button onClick={() => { setShowSignupModal(false); setSavedOfflineChecked(false) }}
+   942→                disabled={!savedOfflineChecked}
+   943→                className="w-full py-2.5 rounded-xl font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white disabled:opacity-40">
+   944→                Continue to Dashboard
+   945→              </button>
+   946→            </motion.div>
+   947→          </motion.div>
+   948→        )}
+   949→      </AnimatePresence>
+   950→
+   951→      {/* ── New Team Modal ── */}
+   952→      <AnimatePresence>
+   953→        {showNewTeam && (
+   954→          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowNewTeam(false)}>
+   955→            <motion.div {...modalContent} className="glass rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+   956→              <h2 className="text-lg font-bold text-zinc-100 mb-4">Create New Team</h2>
+   957→              <div className="space-y-3">
+   958→                <div>
+   959→                  <label className="block text-xs text-zinc-400 mb-1">Team Name</label>
+   960→                  <input value={newTeamName} onChange={e => setNewTeamName(e.target.value)}
+   961→                    className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
+   962→                    placeholder="my-awesome-team" />
+   963→                </div>
+   964→                <div>
+   965→                  <label className="block text-xs text-zinc-400 mb-1">Description (optional)</label>
+   966→                  <textarea value={newTeamDesc} onChange={e => setNewTeamDesc(e.target.value)} rows={2}
+   967→                    className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100 resize-none"
+   968→                    placeholder="What is this team for?" />
+   969→                </div>
+   970→                {teamError && <p className="text-red-400 text-sm">{teamError}</p>}
+   971→                <div className="flex gap-2 pt-2">
+   972→                  <button onClick={() => setShowNewTeam(false)} className="flex-1 py-2 rounded-lg text-sm glass border border-border text-zinc-400">Cancel</button>
+   973→                  <button onClick={handleCreateTeam} disabled={!newTeamName}
+   974→                    className="flex-1 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white disabled:opacity-40">
+   975→                    Create Team
+   976→                  </button>
+   977→                </div>
+   978→              </div>
+   979→            </motion.div>
+   980→          </motion.div>
+   981→        )}
+   982→      </AnimatePresence>
+   983→
+   984→      {/* ── New Agent Modal ── */}
+   985→      <AnimatePresence>
+   986→        {showNewAgent && (
+   987→          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowNewAgent(false)}>
+   988→            <motion.div {...modalContent} className="glass rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+   989→              <h2 className="text-lg font-bold text-zinc-100 mb-4">Add Agent</h2>
+   990→              <div className="space-y-3">
+   991→                <div>
+   992→                  <label className="block text-xs text-zinc-400 mb-1">Agent Name</label>
+   993→                  <input value={newAgentName} onChange={e => setNewAgentName(e.target.value)}
+   994→                    className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
+   995→                    placeholder="agent-name" />
+   996→                </div>
+   997→                <div>
+   998→                  <label className="block text-xs text-zinc-400 mb-1">Role</label>
+   999→                  <select value={newAgentRole} onChange={e => setNewAgentRole(e.target.value as AgentRole)}
+  1000→                    className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100">
+  1001→                    <option value="worker">⚙️ Worker</option>
+  1002→                    <option value="observer">👁️ Observer</option>
+  1003→                    <option value="lead">👑 Lead</option>
+  1004→                  </select>
+  1005→                </div>
+  1006→                <div className="flex gap-2 pt-2">
+  1007→                  <button onClick={() => setShowNewAgent(false)} className="flex-1 py-2 rounded-lg text-sm glass border border-border text-zinc-400">Cancel</button>
+  1008→                  <button onClick={handleAddAgent} disabled={!newAgentName}
+  1009→                    className="flex-1 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white disabled:opacity-40">
+  1010→                    Add Agent
+  1011→                  </button>
+  1012→                </div>
+  1013→              </div>
+  1014→            </motion.div>
+  1015→          </motion.div>
+  1016→        )}
+  1017→      </AnimatePresence>
+  1018→
+  1019→      {/* ── New Instruction Modal ── */}
+  1020→      <AnimatePresence>
+  1021→        {showNewInstruction && (
+  1022→          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowNewInstruction(false)}>
+  1023→            <motion.div {...modalContent} className="glass rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+  1024→              <h2 className="text-lg font-bold text-zinc-100 mb-4">New Instruction</h2>
+  1025→              <div className="space-y-3">
+  1026→                <div>
+  1027→                  <label className="block text-xs text-zinc-400 mb-1">Title</label>
+  1028→                  <input value={newInstTitle} onChange={e => setNewInstTitle(e.target.value)}
+  1029→                    className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
+  1030→                    placeholder="Task title" />
+  1031→                </div>
+  1032→                <div>
+  1033→                  <label className="block text-xs text-zinc-400 mb-1">Content</label>
+  1034→                  <textarea value={newInstContent} onChange={e => setNewInstContent(e.target.value)} rows={3}
+  1035→                    className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100 resize-none"
+  1036→                    placeholder="Describe the task..." />
+  1037→                </div>
+  1038→                <div className="grid grid-cols-2 gap-3">
+  1039→                  <div>
+  1040→                    <label className="block text-xs text-zinc-400 mb-1">Priority</label>
+  1041→                    <select value={newInstPriority} onChange={e => setNewInstPriority(e.target.value as InstructionPriority)}
+  1042→                      className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100">
+  1043→                      <option value="low">Low</option>
+  1044→                      <option value="normal">Normal</option>
+  1045→                      <option value="high">High</option>
+  1046→                      <option value="urgent">Urgent</option>
+  1047→                    </select>
+  1048→                  </div>
+  1049→                  <div>
+  1050→                    <label className="block text-xs text-zinc-400 mb-1">Assignee</label>
+  1051→                    <select value={newInstAssigneeId} onChange={e => setNewInstAssigneeId(e.target.value)}
+  1052→                      className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100">
+  1053→                      <option value="">Unassigned</option>
+  1054→                      {agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+  1055→                    </select>
+  1056→                  </div>
+  1057→                </div>
+  1058→                <div className="flex gap-2 pt-2">
+  1059→                  <button onClick={() => setShowNewInstruction(false)} className="flex-1 py-2 rounded-lg text-sm glass border border-border text-zinc-400">Cancel</button>
+  1060→                  <button onClick={handleCreateInstruction} disabled={!newInstTitle}
+  1061→                    className="flex-1 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white disabled:opacity-40">
+  1062→                    Create
+  1063→                  </button>
+  1064→                </div>
+  1065→              </div>
+  1066→            </motion.div>
+  1067→          </motion.div>
+  1068→        )}
+  1069→      </AnimatePresence>
+  1070→
+  1071→      {/* ── Invite Agent Modal ── */}
+  1072→      <AnimatePresence>
+  1073→        {showNewInviteAgent && (
+  1074→          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowNewInviteAgent(false)}>
+  1075→            <motion.div {...modalContent} className="glass rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+  1076→              <h2 className="text-lg font-bold text-zinc-100 mb-4">Invite Agent</h2>
+  1077→              {inviteResult ? (
+  1078→                <div className="space-y-3">
+  1079→                  <p className="text-sm text-emerald-400">Invite created! Share this code with the agent:</p>
+  1080→                  <div className="bg-black/40 rounded-lg p-3">
+  1081→                    <div className="text-xs text-zinc-500 mb-1">Invite Code</div>
+  1082→                    <code className="text-sm text-emerald-400 break-all select-all">{inviteResult.code}</code>
+  1083→                  </div>
+  1084→                  {inviteResult.token && (
+  1085→                    <div className="bg-black/40 rounded-lg p-3">
+  1086→                      <div className="text-xs text-zinc-500 mb-1">Agent Token</div>
+  1087→                      <code className="text-sm text-cyan-400 break-all select-all">{inviteResult.token}</code>
+  1088→                    </div>
+  1089→                  )}
+  1090→                  <button onClick={() => { copyToClipboard(inviteResult.code); setInviteResult(null); setShowNewInviteAgent(false) }}
+  1091→                    className="w-full py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+  1092→                    {copiedFeedback || 'Copy Code & Close'}
+  1093→                  </button>
+  1094→                </div>
+  1095→              ) : (
+  1096→                <div className="space-y-3">
+  1097→                  <div>
+  1098→                    <label className="block text-xs text-zinc-400 mb-1">Role</label>
+  1099→                    <select value={inviteAgentRole} onChange={e => setInviteAgentRole(e.target.value as AgentRole)}
+  1100→                      className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100">
+  1101→                      <option value="worker">⚙️ Worker</option>
+  1102→                      <option value="observer">👁️ Observer</option>
+  1103→                      <option value="lead">👑 Lead</option>
+  1104→                    </select>
+  1105→                  </div>
+  1106→                  <div>
+  1107→                    <label className="block text-xs text-zinc-400 mb-1">Expires In (hours, optional)</label>
+  1108→                    <input value={inviteExpiryHours} onChange={e => setInviteExpiryHours(e.target.value)}
+  1109→                      className="w-full bg-input border border-border text-sm rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-ring/50 text-zinc-100"
+  1110→                      placeholder="24" />
+  1111→                  </div>
+  1112→                  <div className="flex gap-2 pt-2">
+  1113→                    <button onClick={() => setShowNewInviteAgent(false)} className="flex-1 py-2 rounded-lg text-sm glass border border-border text-zinc-400">Cancel</button>
+  1114→                    <button onClick={() => handleCreateInvite('agent')}
+  1115→                      className="flex-1 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+  1116→                      Create Invite
+  1117→                    </button>
+  1118→                  </div>
+  1119→                </div>
+  1120→              )}
+  1121→            </motion.div>
+  1122→          </motion.div>
+  1123→        )}
+  1124→      </AnimatePresence>
+  1125→
+  1126→      {/* ── Invite Human Modal ── */}
+  1127→      <AnimatePresence>
+  1128→        {showNewInviteHuman && (
+  1129→          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+  1130→            <motion.div {...modalContent} className="glass rounded-2xl p-6 w-full max-w-md">
+  1131→              <div className="text-center py-8">
+  1132→                <div className="text-3xl mb-3 animate-spin">⏳</div>
+  1133→                <p className="text-zinc-400">Creating human invite...</p>
+  1134→              </div>
+  1135→            </motion.div>
+  1136→          </motion.div>
+  1137→        )}
+  1138→      </AnimatePresence>
+  1139→
+  1140→      {/* ── Human Invite Result Modal ── */}
+  1141→      <AnimatePresence>
+  1142→        {humanInviteResult && !showNewInviteHuman && (
+  1143→          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
+  1144→            <motion.div {...modalContent} className="glass rounded-2xl p-6 w-full max-w-md">
+  1145→              <h2 className="text-lg font-bold text-zinc-100 mb-1">Human Invite Created</h2>
+  1146→              <p className="text-sm text-amber-400 mb-4">Share These Credentials</p>
+  1147→              <div className="space-y-3 mb-4">
+  1148→                <div className="bg-black/40 rounded-lg p-3">
+  1149→                  <div className="text-xs text-zinc-500 mb-1">Invite Code</div>
+  1150→                  <code className="text-sm text-emerald-400 break-all select-all">{humanInviteResult.code}</code>
+  1151→                </div>
+  1152→                {humanInviteResult.username && (
+  1153→                  <div className="bg-black/40 rounded-lg p-3">
+  1154→                    <div className="text-xs text-zinc-500 mb-1">Username</div>
+  1155→                    <code className="text-sm text-cyan-400 break-all select-all">{humanInviteResult.username}</code>
+  1156→                  </div>
+  1157→                )}
+  1158→                {humanInviteResult.token && (
+  1159→                  <div className="bg-black/40 rounded-lg p-3">
+  1160→                    <div className="text-xs text-zinc-500 mb-1">Login Token</div>
+  1161→                    <code className="text-sm text-violet-400 break-all select-all">{humanInviteResult.token}</code>
+  1162→                  </div>
+  1163→                )}
+  1164→              </div>
+  1165→              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
+  1166→                <p className="text-xs text-red-400 font-medium">⚠️ Share these login credentials with the human. They will NOT be shown again.</p>
+  1167→              </div>
+  1168→              <div className="flex gap-2">
+  1169→                <button onClick={() => {
+  1170→                  const text = humanInviteResult.username
+  1171→                    ? `Invite Code: ${humanInviteResult.code}\nUsername: ${humanInviteResult.username}\nLogin Token: ${humanInviteResult.token}`
+  1172→                    : `Invite Code: ${humanInviteResult.code}\nCredentials: ${humanInviteResult.credentials}`
+  1173→                  copyToClipboard(text)
+  1174→                }} className="flex-1 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+  1175→                  {copiedFeedback || 'Copy All'}
+  1176→                </button>
+  1177→                <button onClick={() => downloadAsFile(
+  1178→                  humanInviteResult.username
+  1179→                    ? `Invite Code: ${humanInviteResult.code}\nUsername: ${humanInviteResult.username}\nLogin Token: ${humanInviteResult.token}\n`
+  1180→                    : `Invite Code: ${humanInviteResult.code}\nCredentials: ${humanInviteResult.credentials}\n`,
+  1181→                  `memtrant-human-invite-${humanInviteResult.code}.txt`
+  1182→                )} className="flex-1 py-2 rounded-lg text-sm glass border border-border text-zinc-300">
+  1183→                  Download
+  1184→                </button>
+  1185→              </div>
+  1186→              <button onClick={() => setHumanInviteResult(null)}
+  1187→                className="w-full mt-3 py-2 rounded-lg text-sm text-zinc-400 hover:text-zinc-200">
+  1188→                Close
+  1189→              </button>
+  1190→            </motion.div>
+  1191→          </motion.div>
+  1192→        )}
+  1193→      </AnimatePresence>
+  1194→
+  1195→      {/* ── Token Modal ── */}
+  1196→      <AnimatePresence>
+  1197→        {showToken && selectedTeam && (
+  1198→          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowToken(false)}>
+  1199→            <motion.div {...modalContent} className="glass rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+  1200→              <h2 className="text-lg font-bold text-zinc-100 mb-2">Owner Token</h2>
+  1201→              <p className="text-xs text-zinc-500 mb-3">Use this token for admin API operations. Keep it secret.</p>
+  1202→              <div className="bg-black/40 rounded-lg p-3 mb-4">
+  1203→                <code className="text-sm text-emerald-400 break-all select-all font-mono">{selectedTeam.ownerToken}</code>
+  1204→              </div>
+  1205→              <div className="flex gap-2">
+  1206→                <button onClick={() => copyToClipboard(selectedTeam.ownerToken)}
+  1207→                  className="flex-1 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-emerald-500 to-cyan-500 text-white">
+  1208→                  {copiedFeedback || 'Copy Token'}
+  1209→                </button>
+  1210→                <button onClick={() => setShowToken(false)} className="flex-1 py-2 rounded-lg text-sm glass border border-border text-zinc-400">Close</button>
+  1211→              </div>
+  1212→            </motion.div>
+  1213→          </motion.div>
+  1214→        )}
+  1215→      </AnimatePresence>
+  1216→    </div>
+  1217→  )
+  1218→}
