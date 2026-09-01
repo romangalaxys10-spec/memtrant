@@ -1,0 +1,104 @@
+import { promises as fs } from 'fs'
+import path from 'path'
+
+const BASE_PATH = process.env.STORAGE_PATH || '/home/z/my-project/data/memtrant'
+
+export function getTeamPath(slug: string): string {
+  return path.join(BASE_PATH, slug)
+}
+
+export function getFilePath(slug: string, filePath: string): string {
+  const sanitized = filePath.split('/').filter(Boolean).join('/').replace(/\.{2,}/g, '')
+  return path.join(BASE_PATH, slug, sanitized)
+}
+
+export async function ensureTeamDir(slug: string): Promise<void> {
+  await fs.mkdir(getTeamPath(slug), { recursive: true })
+}
+
+export async function listTeamFiles(slug: string, dirPath = ''): Promise<{ name: string; type: 'file' | 'directory'; size?: number; modified?: string }[]> {
+  const target = dirPath ? getFilePath(slug, dirPath) : getTeamPath(slug)
+  try {
+    const entries = await fs.readdir(target, { withFileTypes: true })
+    const results = []
+    for (const entry of entries) {
+      const fullPath = path.join(target, entry.name)
+      if (entry.isDirectory()) {
+        results.push({ name: entry.name, type: 'directory' })
+      } else {
+        const stat = await fs.stat(fullPath)
+        results.push({
+          name: entry.name,
+          type: 'file',
+          size: stat.size,
+          modified: stat.mtime.toISOString()
+        })
+      }
+    }
+    return results.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+      return a.name.localeCompare(b.name)
+    })
+  } catch {
+    return []
+  }
+}
+
+export async function readFileContent(slug: string, filePath: string): Promise<string | null> {
+  try {
+    return await fs.readFile(getFilePath(slug, filePath), 'utf-8')
+  } catch {
+    return null
+  }
+}
+
+export async function writeFileContent(slug: string, filePath: string, content: string): Promise<void> {
+  const target = getFilePath(slug, filePath)
+  await fs.mkdir(path.dirname(target), { recursive: true })
+  await fs.writeFile(target, content, 'utf-8')
+}
+
+export async function writeFileBinary(slug: string, filePath: string, buffer: Buffer): Promise<void> {
+  const target = getFilePath(slug, filePath)
+  await fs.mkdir(path.dirname(target), { recursive: true })
+  await fs.writeFile(target, buffer)
+}
+
+export async function readFileBinary(slug: string, filePath: string): Promise<Buffer | null> {
+  try {
+    return await fs.readFile(getFilePath(slug, filePath))
+  } catch {
+    return null
+  }
+}
+
+export async function deleteFileOrDir(slug: string, filePath: string): Promise<boolean> {
+  try {
+    await fs.rm(getFilePath(slug, filePath), { recursive: true, force: true })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function getTeamSize(slug: string): Promise<number> {
+  let totalSize = 0
+  async function walk(dir: string) {
+    try {
+      for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+        const fullPath = path.join(dir, entry.name)
+        if (entry.isDirectory()) {
+          await walk(fullPath)
+        } else {
+          totalSize += (await fs.stat(fullPath)).size
+        }
+      }
+    } catch {}
+  }
+  await walk(getTeamPath(slug))
+  return totalSize
+}
+
+export async function deleteTeamDir(slug: string): Promise<void> {
+  await fs.rm(getTeamPath(slug), { recursive: true, force: true })
+}

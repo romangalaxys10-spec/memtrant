@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(cuid())
+  username   String   @unique
+  loginToken String   @unique
+  teams      Team[]
+  invites    Invite[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Team {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  description String?
+  ownerToken  String    @unique
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  agents      Agent[]
+  instructions Instruction[]
+  invites     Invite[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Agent {
+  id                  String         @id @default(cuid())
+  name                String
+  role                String         @default("worker")
+  token               String         @unique
+  status              String         @default("idle")
+  teamId              String
+  team                Team           @relation(fields: [teamId], references: [id])
+  lastSeen            DateTime       @default(now())
+  createdInstructions Instruction[] @relation("CreatorInstructions")
+  assignedInstructions Instruction[] @relation("AssignedInstructions")
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+}
+
+model Instruction {
+  id         String   @id @default(cuid())
+  title      String
+  content    String
+  status     String   @default("pending")
+  priority   String   @default("normal")
+  assigneeId String?
+  assignee   Agent?   @relation("AssignedInstructions", fields: [assigneeId], references: [id])
+  creatorId  String
+  creator    Agent    @relation("CreatorInstructions", fields: [creatorId], references: [id])
+  teamId     String
+  team       Team     @relation(fields: [teamId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  type        String    // "agent" or "human"
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id])
+  createdById String?
+  createdByUser User?    @relation(fields: [createdById], references: [id])
+  role        String?   // suggested role for agent invites
+  maxUses     Int       @default(1)
+  useCount    Int       @default(0)
+  status      String    @default("active") // active, used, expired
+  claimedBy   String?   // who claimed it
+  credentials String?   // JSON string for human invite credentials
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+}

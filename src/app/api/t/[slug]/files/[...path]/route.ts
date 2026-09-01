@@ -1,0 +1,62 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { authenticateAgent } from '@/lib/auth'
+import { readFileBinary } from '@/lib/storage'
+import path from 'path'
+
+const MIME_TYPES: Record<string, string> = {
+  '.json': 'application/json',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.ts': 'application/typescript',
+  '.csv': 'text/csv',
+  '.xml': 'application/xml',
+  '.yaml': 'text/yaml',
+  '.yml': 'text/yaml',
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.mp4': 'video/mp4',
+  '.zip': 'application/zip',
+  '.tar': 'application/x-tar',
+  '.gz': 'application/gzip',
+}
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string; path: string[] }> }) {
+  try {
+    const { slug, path: pathSegments } = await params
+    const auth = await authenticateAgent(req)
+    if (!auth || auth.team.slug !== slug) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const filePath = pathSegments.join('/')
+    const buffer = await readFileBinary(slug, filePath)
+
+    if (buffer === null) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 })
+    }
+
+    const ext = path.extname(filePath).toLowerCase()
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream'
+
+    return new NextResponse(buffer, {
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': buffer.length.toString(),
+        'Content-Disposition': `inline; filename="${path.basename(filePath)}"`,
+      },
+    })
+  } catch (error: any) {
+    console.error('File download error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
