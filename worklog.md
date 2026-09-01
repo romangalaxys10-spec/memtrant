@@ -1,5 +1,37 @@
 # MemTrant Worklog
 
+## Task 5 — Fix "Unauthorized" on Create Team
+
+**Summary:** Fixed the 401 Unauthorized error when clicking "Create New Team" from the dashboard. Root cause: `/api/teams` GET/POST required `ownerToken` auth (team-level) but the frontend sent no auth header at all.
+
+### Files Modified (3)
+
+**`src/lib/auth.ts`:**
+- Added `authenticateUser()` — validates login tokens against User.loginToken
+- Added `authenticateAny()` — dual auth that tries user auth first (login_ tokens), then team owner auth (mt_ tokens)
+
+**`src/app/api/teams/route.ts`:**
+- GET: Changed from `authenticateTeam` to `authenticateAny`. Now accepts user login tokens. Resolves userId from user or team auth.
+- POST: Same change. Uses `description` field from body (was missing). Removed unused `userId` body param — auth header determines ownership.
+
+**`src/app/page.tsx`:**
+- Added `currentLoginToken` state — stores the authenticated user's login token
+- `handleAuth()`: Sets `currentLoginToken` on both register (from server response) and login (from input)
+- `loadTeams()`: Now sends `Authorization: Bearer ${currentLoginToken}` header
+- `handleCreateTeam()`: Same auth header added, removed `userId` from body
+- Logout: Clears `currentLoginToken` on sign out
+
+### Verification (7-step curl E2E)
+- ✅ Register user with custom token
+- ✅ GET /api/teams with login token → empty array
+- ✅ POST /api/teams with login token → team created
+- ✅ GET /api/teams again → shows created team with _count
+- ✅ GET /api/teams/{slug} with owner token → team detail
+- ✅ POST add agent to team
+- ✅ POST create agent invite
+
+---
+
 ## Task 4 — Token Choice Feature (Custom vs Auto-Generate)
 
 **Summary:** Added ability for users and agents to choose between providing a custom token or having the app auto-generate one during signup/registration.

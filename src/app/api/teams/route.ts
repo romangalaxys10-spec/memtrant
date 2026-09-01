@@ -2,19 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { generateToken, generateSlug } from '@/lib/token'
 import { ensureTeamDir } from '@/lib/storage'
-import { authenticateTeam } from '@/lib/auth'
+import { authenticateAny } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await authenticateTeam(req)
+    const auth = await authenticateAny(req)
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Use the authenticated token's team - list teams the user owns
-    // The token is the ownerToken, so the team found is the user's team
+    // Determine which userId to filter by
+    let userId: string
+    if (auth.type === 'user') {
+      userId = auth.user.id
+    } else {
+      userId = auth.team.userId
+    }
+
     const teams = await db.team.findMany({
-      where: { ownerToken: auth.token },
+      where: { userId },
       include: {
         _count: {
           select: { agents: true, instructions: true },
@@ -32,26 +38,24 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await authenticateTeam(req)
+    const auth = await authenticateAny(req)
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await req.json()
-    const { name, userId: username } = body
+    const { name, description } = body
 
     if (!name) {
       return NextResponse.json({ error: 'Team name required' }, { status: 400 })
     }
 
-    // Look up user by username, then use user.id for FK
-    let ownerId = auth.team.userId
-    if (username) {
-      const user = await db.user.findUnique({ where: { username } })
-      if (!user) {
-        return NextResponse.json({ error: 'User not found' }, { status: 404 })
-      }
-      ownerId = user.id
+    // Determine the user ID
+    let userId: string
+    if (auth.type === 'user') {
+      userId = auth.user.id
+    } else {
+      userId = auth.team.userId
     }
 
     const slug = generateSlug()
@@ -64,7 +68,8 @@ export async function POST(req: NextRequest) {
         name,
         slug,
         ownerToken,
-        userId: ownerId,
+        userId,
+        description: description || null,
       },
       include: {
         agents: true,

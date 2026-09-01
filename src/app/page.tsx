@@ -92,6 +92,7 @@ export default function Home() {
 
   // Credentials
   const [loginTokenSaved, setLoginTokenSaved] = useState('')
+  const [currentLoginToken, setCurrentLoginToken] = useState('')
   const [showSignupModal, setShowSignupModal] = useState(false)
   const [savedOfflineChecked, setSavedOfflineChecked] = useState(false)
   const [copiedFeedback, setCopiedFeedback] = useState('')
@@ -175,10 +176,12 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error || 'Auth failed')
       if (authMode === 'register') {
         setLoginTokenSaved(data.loginToken)
+        setCurrentLoginToken(data.loginToken)
         setShowSignupModal(true)
         setView('dashboard')
         await loadTeams()
       } else {
+        setCurrentLoginToken(loginToken)
         setView('dashboard')
         await loadTeams()
       }
@@ -192,7 +195,9 @@ export default function Home() {
   async function loadTeams() {
     setTeamsLoading(true)
     try {
-      const res = await fetch(`${API}/api/teams?userId=${encodeURIComponent(username)}`)
+      const res = await fetch(`${API}/api/teams`, {
+        headers: { Authorization: `Bearer ${currentLoginToken}` },
+      })
       const data = await res.json()
       setTeams(Array.isArray(data) ? data : data.teams || [])
     } catch { setTeams([]) }
@@ -204,8 +209,8 @@ export default function Home() {
     try {
       const res = await fetch(`${API}/api/teams`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newTeamName, description: newTeamDesc || null, userId: username }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentLoginToken}` },
+        body: JSON.stringify({ name: newTeamName, description: newTeamDesc || null }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to create team')
@@ -560,7 +565,7 @@ export default function Home() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-zinc-400">{username}</span>
-                <button onClick={() => setView('landing')} className="text-xs text-zinc-500 hover:text-zinc-300">Logout</button>
+                <button onClick={() => { setCurrentLoginToken(''); setView('landing') }} className="text-xs text-zinc-500 hover:text-zinc-300">Logout</button>
               </div>
             </header>
 
