@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateAgent } from '@/lib/auth'
-import { readFileContent, writeFileContent, writeFileBinary, deleteFileOrDir } from '@/lib/storage'
-import { storageCtxForTeam } from '@/lib/user-storage'
+import { readFileContent, writeFileContent, deleteFileOrDir } from '@/lib/storage'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string; path: string[] }> }) {
   try {
@@ -10,10 +9,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     if (!auth || auth.team.slug !== slug) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const sctx = await storageCtxForTeam(slug)
 
     const filePath = pathSegments.join('/')
-    const content = await readFileContent(slug, filePath, sctx)
+    const content = await readFileContent(slug, filePath)
 
     if (content === null) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
@@ -35,12 +33,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ slug
     if (!auth || auth.team.slug !== slug) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const sctx = await storageCtxForTeam(slug)
 
     const filePath = pathSegments.join('/')
     const content = await req.text()
 
-    await writeFileContent(slug, filePath, content, sctx)
+    await writeFileContent(slug, filePath, content)
 
     return NextResponse.json({ success: true, path: filePath })
   } catch (error: any) {
@@ -56,7 +53,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     if (!auth || auth.team.slug !== slug) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const sctx = await storageCtxForTeam(slug)
 
     const filePath = pathSegments.join('/')
 
@@ -64,13 +60,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     const contentType = req.headers.get('content-type') || ''
     if (contentType.startsWith('multipart/') || !contentType.includes('text')) {
       const buffer = Buffer.from(await req.arrayBuffer())
-      await writeFileBinary(slug, filePath, buffer, sctx)
+      const { writeFileBinary } = await import('@/lib/storage')
+      await writeFileBinary(slug, filePath, buffer)
       return NextResponse.json({ success: true, path: filePath, type: 'binary' })
     }
 
     // Text content
     const content = await req.text()
-    await writeFileContent(slug, filePath, content, sctx)
+    await writeFileContent(slug, filePath, content)
 
     return NextResponse.json({ success: true, path: filePath, type: 'text' }, { status: 201 })
   } catch (error: any) {
@@ -86,7 +83,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ s
     if (!auth || auth.team.slug !== slug) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const sctx = await storageCtxForTeam(slug)
 
     const filePath = pathSegments.join('/')
     const deleted = await deleteFileOrDir(slug, filePath)

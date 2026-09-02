@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260902T103625382Z-38624-93863fbcd2e7",
+  "runId": "20260902T103625382Z-38624-93863fbcd2e7",
+  "runStatus": "inconclusive",
+  "coverage": {
+    "status": "partial",
+    "reasons": [
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "package-lock.json",
+        "detail": "file is missing from task baseline",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "package-lock.json",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affectsCompletion": true
+      }
+    ]
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "312d85020783cf79c1b8029eeac8c7cc76f12ca6",
+  "diffHash": "81acb75333a0deb497228faa24c0c92697244eb8d6256e459eb6e41b9db1b41d",
+  "rulesVersion": "unavailable",
+  "sessionHash": "fb0c9c13c3736e2d520f7d829bf8f98b70f6fd886b4a633b93600fc05c9d8740",
+  "reportRef": ".mimosa/reports/task-review-sess_1bd60641-ca00-40cb-ae1c-da1db0ba1845-20260902T103625382Z-38624-93863fbcd2e7.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [
+    {
+      "file": "next.config.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/lib/storage.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/lib/db.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/app/api/t/[slug]/files/[...path]/route.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-09-02T10:36:25.615Z"
+}

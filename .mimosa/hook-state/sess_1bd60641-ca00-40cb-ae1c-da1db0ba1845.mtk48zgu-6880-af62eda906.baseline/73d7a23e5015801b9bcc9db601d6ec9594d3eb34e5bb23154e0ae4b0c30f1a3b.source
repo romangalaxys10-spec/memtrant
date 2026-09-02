@@ -157,130 +157,6 @@ function SpotlightCard({ icon, title, desc, delay = 0 }: { icon: string; title: 
   )
 }
 
-// ── GitHub Pair Card ────────────────────────────────────────────────────────
-function GithubPairCard({ username, loginToken }: { username: string; loginToken: string }) {
-  const [open, setOpen] = useState(false)
-  const [repo, setRepo] = useState('')
-  const [token, setToken] = useState('')
-  const [pairedRepo, setPairedRepo] = useState<string | null>(null)
-  const [status, setStatus] = useState<'idle' | 'working' | 'error'>('idle')
-  const [message, setMessage] = useState('')
-
-  useEffect(() => {
-    if (!username) return
-    fetch(`/api/auth/github?username=${encodeURIComponent(username)}`)
-      .then((r) => r.json())
-      .then((d) => setPairedRepo(d.repo || null))
-      .catch(() => {})
-  }, [username])
-
-  async function pair() {
-    setStatus('working')
-    setMessage('')
-    try {
-      const res = await fetch('/api/auth/github', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${loginToken}` },
-        body: JSON.stringify({ username, repo: repo.trim(), token: token.trim() }),
-      })
-      const data = await res.json()
-      if (res.ok && data.success) {
-        setPairedRepo(data.repo)
-        setToken('')
-        setOpen(false)
-        setMessage('')
-        setStatus('idle')
-      } else {
-        setStatus('error')
-        setMessage(data.error || 'Pairing failed')
-      }
-    } catch {
-      setStatus('error')
-      setMessage('Network error')
-    }
-  }
-
-  async function unpair() {
-    try {
-      const res = await fetch('/api/auth/github', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${loginToken}` },
-        body: JSON.stringify({ username }),
-      })
-      if (res.ok) setPairedRepo(null)
-    } catch {}
-  }
-
-  return (
-    <div className="apple-glass rounded-2xl p-5 mb-8 border border-white/[0.08]">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="text-xl">🔗</span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-zinc-100">GitHub Brain</span>
-              <span className="text-[10px] uppercase tracking-wide text-zinc-500 border border-white/[0.08] rounded-full px-2 py-0.5">optional</span>
-            </div>
-            {pairedRepo ? (
-              <p className="text-xs text-emerald-400 font-mono truncate mt-0.5">🟢 {pairedRepo}</p>
-            ) : (
-              <p className="text-xs text-zinc-500 mt-0.5">Store your team memories in your own private GitHub repo</p>
-            )}
-          </div>
-        </div>
-        {pairedRepo ? (
-          <div className="flex items-center gap-2">
-            <a
-              href={`https://github.com/${pairedRepo}/commits`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-zinc-400 hover:text-zinc-200"
-            >View commits</a>
-            <button onClick={unpair} className="text-xs px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-zinc-500 hover:text-red-400">Unpair</button>
-          </div>
-        ) : (
-          <button onClick={() => setOpen((o) => !o)} className="text-xs px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/90 to-cyan-500/90 text-white font-semibold">
-            {open ? 'Cancel' : 'Pair your repo'}
-          </button>
-        )}
-      </div>
-
-      {open && !pairedRepo && (
-        <div className="mt-4 pt-4 border-t border-white/[0.06] space-y-3">
-          <ol className="text-xs text-zinc-500 space-y-1 list-decimal list-inside">
-            <li>Create a <span className="text-zinc-300">private</span> repo: <a className="text-emerald-400 hover:underline" href="https://github.com/new" target="_blank" rel="noreferrer">github.com/new</a></li>
-            <li>Create a token (fine-grained): <a className="text-emerald-400 hover:underline" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">github.com/settings/personal-access-tokens/new</a> — select your repo, set <span className="text-zinc-300">Contents: Read and write</span></li>
-            <li>Paste the repo name and token below</li>
-          </ol>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <input
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              placeholder="my-memtrant-brain (repo name)"
-              className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/40"
-            />
-            <input
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="github_pat_…"
-              type="password"
-              className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/40"
-            />
-          </div>
-          {message && <p className="text-xs text-red-400">{message}</p>}
-          <button
-            onClick={pair}
-            disabled={status === 'working' || !repo.trim() || !token.trim()}
-            className="apple-btn-primary px-5 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {status === 'working' ? 'Validating & pairing…' : 'Pair repo'}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── Home Component ─────────────────────────────────────────────────────────
 export default function Home() {
   // ── i18n State ─────────────────────────────────────────────────────────
@@ -1210,8 +1086,6 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
                 </div>
               </div>
             </header>
-
-            <GithubPairCard username={username} loginToken={currentLoginToken} />
 
             <div className="flex items-center justify-between mb-8">
               <motion.h2

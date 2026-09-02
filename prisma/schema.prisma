@@ -8,13 +8,15 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  username   String   @unique
-  loginToken String   @unique
-  teams      Team[]
-  invites    Invite[]
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String   @id @default(cuid())
+  username       String   @unique
+  loginToken     String   @unique
+  githubRepo     String?  // BYO storage: user's paired private repo (owner/name)
+  githubTokenEnc String?  // BYO storage: AES-256-GCM encrypted fine-grained PAT
+  teams          Team[]
+  invites        Invite[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model Team {
