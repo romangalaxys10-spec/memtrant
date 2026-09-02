@@ -120,3 +120,30 @@
 - Team auth uses `ownerToken` matching; agent auth uses `token` with team include
 - Invite system supports both agent (auto-creates Agent on claim) and human (auto-creates User with credentials) flows
 - Agent-facing routes under `/t/` authenticate via agent token and verify team slug match
+---
+Task ID: apple-ux-polish
+Agent: main
+Task: Apply Apple/Steve Jobs-style magic touch UX tweaks to home page
+
+Work Log:
+- Created Apple-style CSS globals: custom thin scrollbar (macOS-style), emerald selection highlight, smooth scroll, antialiased font rendering
+- Added keyframe animations: orb-drift (organic background motion), apple-float (hero emoji), shimmer (skeleton loading), fade-up-in (stagger entrance)
+- Created CSS classes: apple-glass, apple-glass-strong (frosted glass surfaces), apple-btn-primary (light-sweep hover), apple-btn-secondary (lift hover), apple-shimmer (loading skeleton)
+- Landing page: Staggered hero reveal with spring-bounce emoji entrance, blur-to-sharp title animation, floating brain emoji, 3 animated gradient orbs with drift, spring-physics feature card hovers with scale, refined CTA buttons with precise box-shadow layers
+- Auth page: Glass card with backdrop-blur-60, spring-animated emoji, animated error messages (height + opacity), loading spinner replaces "..." text, refined input focus rings
+- Dashboard: Sticky glass header with backdrop-blur-2xl, spring-animated logo, shimmer skeleton loading states, staggered team card entrance, empty state with floating envelope animation, team cards with spring hover lift
+- Team detail: Sticky glass header, animated chevron back button, spring-physics animated tab underline (layoutId), shimmer loading states, staggered overview stat cards with scale entrance, agent list items with slide-in stagger
+- Modals: Frosted glass backdrop (backdrop-blur-xl), spring entrance/exit animations (scale 0.92 + y:20), apple-glass-strong modal cards
+- Footer: Refined typography, emerald hover accent on links, cleaner spacing
+- Language selector: Glass styling, staggered entrance animation
+- Buttons: All primary buttons use apple-btn-primary with light-sweep overlay, all secondary use apple-btn-secondary with lift effect
+- All cards: Replaced bg-white/[0.03] with apple-glass for consistent frosted glass
+- Fixed 3 JSX tag mismatch errors (motion.section/motion.div closing tags)
+- Fixed duplicate transition prop lint error
+- Verified in browser: landing renders with animations, auth view transitions smoothly, zero console errors
+
+Stage Summary:
+- Applied 30+ Apple-style UX improvements across all views
+- Zero lint errors, zero runtime errors
+- Key Apple design principles applied: spring physics, staggered reveals, frosted glass, organic motion, precise shadows, generous spacing, purposeful animation
+

@@ -62,15 +62,37 @@ const roleIcons: Record<string, string> = { lead: '👑', worker: '⚙️', obse
 const statusIcons: Record<string, string> = { idle: '🟢', working: '🔵', offline: '⚫' }
 const API = ''
 
+// ── Apple-style spring physics ────────────────────────────────────────
+const spring = { type: 'spring' as const, stiffness: 400, damping: 30, mass: 0.8 }
+const springGentle = { type: 'spring' as const, stiffness: 250, damping: 25, mass: 1 }
+const springBounce = { type: 'spring' as const, stiffness: 500, damping: 28, mass: 0.6 }
+const easeApple = [0.16, 1, 0.3, 1] as [number, number, number, number]
+const easeSmooth = [0.25, 0.1, 0.25, 1] as [number, number, number, number]
+
+// ── Stagger container for children ──────────────────────────────────────
+const staggerContainer = {
+  animate: { transition: { staggerChildren: 0.08 } },
+}
+const staggerItem = {
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: easeApple } },
+}
+const staggerItemSlow = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.6, ease: easeApple } },
+}
+
 const modalOverlay = {
-  initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 },
-  transition: { duration: 0.2 },
+  initial: { opacity: 0, backdropFilter: 'blur(0px)' },
+  animate: { opacity: 1, backdropFilter: 'blur(12px)' },
+  exit: { opacity: 0, backdropFilter: 'blur(0px)' },
+  transition: { duration: 0.35, ease: easeSmooth },
 }
 const modalContent = {
-  initial: { opacity: 0, scale: 0.95, y: 10 },
+  initial: { opacity: 0, scale: 0.92, y: 20 },
   animate: { opacity: 1, scale: 1, y: 0 },
-  exit: { opacity: 0, scale: 0.95, y: 10 },
-  transition: { duration: 0.25, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+  exit: { opacity: 0, scale: 0.92, y: 20 },
+  transition: { ...spring, stiffness: 350, damping: 28 },
 }
 
 // ── Home Component ─────────────────────────────────────────────────────────
@@ -440,11 +462,16 @@ export default function Home() {
   // ── Language Selector ────────────────────────────────────────────────────
   // ── Language Selector ────────────────────────────────────────────────────
   const langSelector = (
-    <div className="fixed top-4 right-4 z-40">
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: easeApple, delay: 0.3 }}
+      className="fixed top-4 right-4 z-40"
+    >
       <select
         value={lang}
         onChange={e => setLang(e.target.value as Lang)}
-        className="bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-1.5 text-xs text-zinc-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 appearance-none cursor-pointer hover:border-white/[0.15] hover:text-zinc-200 transition-all duration-200 pr-7"
+        className="apple-glass rounded-xl px-3 py-1.5 text-xs text-zinc-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 appearance-none cursor-pointer hover:border-white/[0.15] hover:text-zinc-200 transition-all duration-300 pr-7"
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
           backgroundRepeat: 'no-repeat',
@@ -455,7 +482,7 @@ export default function Home() {
           <option key={l.code} value={l.code}>{l.flag} {l.nativeLabel}</option>
         ))}
       </select>
-    </div>
+    </motion.div>
   )
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -468,48 +495,97 @@ export default function Home() {
 
         {/* ════════════ LANDING ════════════ */}
         {view === 'landing' && (
-          <section className="flex-1 flex flex-col items-center justify-center px-6 py-20 md:py-28 relative overflow-hidden">
-            {/* Gradient blobs */}
-            <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-emerald-500/[0.07] rounded-full blur-[140px]" />
-            <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-cyan-500/[0.07] rounded-full blur-[140px]" />
+          <section className="flex-1 flex flex-col items-center justify-center px-6 py-24 md:py-32 relative overflow-hidden">
+            {/* Animated gradient orbs — Apple-style organic drift */}
+            <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-emerald-500/[0.06] rounded-full blur-[160px]" style={{ animation: 'orb-drift-1 20s ease-in-out infinite' }} />
+            <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-cyan-500/[0.05] rounded-full blur-[140px]" style={{ animation: 'orb-drift-2 25s ease-in-out infinite' }} />
+            {/* Subtle warm accent */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-violet-500/[0.03] rounded-full blur-[180px]" style={{ animation: 'orb-drift-1 30s ease-in-out infinite reverse' }} />
 
-            <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }} className="relative z-10 text-center max-w-2xl">
-              <div className="text-7xl mb-6">🧠</div>
-              <h1 className="text-6xl md:text-7xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-6">
+            {/* Hero content — staggered reveal */}
+            <motion.div
+              initial="initial" animate="animate"
+              variants={{
+                animate: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
+              }}
+              className="relative z-10 text-center max-w-2xl"
+            >
+              {/* Floating brain emoji */}
+              <motion.div variants={{ initial: { opacity: 0, scale: 0.5, y: 20 }, animate: { opacity: 1, scale: 1, y: 0, transition: { ...springBounce, delay: 0 } } }}
+                className="text-8xl mb-8 apple-float select-none"
+                style={{ filter: 'drop-shadow(0 0 40px rgba(16, 185, 129, 0.2))' }}
+              >
+                🧠
+              </motion.div>
+
+              {/* Title — reveal with slight upward motion */}
+              <motion.h1
+                variants={{ initial: { opacity: 0, y: 30, filter: 'blur(8px)' }, animate: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.8, ease: easeApple } } }}
+                className="text-7xl md:text-8xl font-bold tracking-[-0.04em] bg-gradient-to-b from-emerald-300 via-emerald-400 to-cyan-500 bg-clip-text text-transparent mb-7 leading-[0.95]"
+              >
                 MemTrant
-              </h1>
-              <p className="text-xl text-zinc-300 font-medium mb-3">
+              </motion.h1>
+
+              {/* Subtitle */}
+              <motion.p
+                variants={staggerItem}
+                className="text-xl md:text-2xl text-zinc-200 font-medium mb-3 tracking-[-0.01em]"
+              >
                 {t('landing.subtitle')}
-              </p>
-              <p className="text-base text-zinc-500 max-w-lg mx-auto mb-12">
+              </motion.p>
+
+              {/* Description */}
+              <motion.p
+                variants={staggerItem}
+                className="text-base md:text-lg text-zinc-500 max-w-lg mx-auto mb-14 leading-relaxed"
+              >
                 {t('landing.description')}
-              </p>
-              <div className="flex gap-4 justify-center">
-                <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+              </motion.p>
+
+              {/* CTA Buttons */}
+              <motion.div variants={staggerItem} className="flex gap-4 justify-center">
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={spring}
                   onClick={() => { setAuthMode('register'); setView('auth'); setTokenMode('auto'); setLoginToken('') }}
-                  className="px-8 py-3.5 rounded-2xl font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-shadow duration-300">
+                  className="apple-btn-primary px-8 py-3.5 rounded-2xl font-semibold text-[15px] bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_8px_32px_-8px_rgba(16,185,129,0.3)] hover:shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_16px_48px_-12px_rgba(16,185,129,0.4)]"
+                >
                   {t('landing.getStarted')}
                 </motion.button>
-                <motion.button whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                <motion.button
+                  whileHover={{ scale: 1.03, y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={spring}
                   onClick={() => { setAuthMode('login'); setView('auth') }}
-                  className="px-8 py-3.5 rounded-2xl font-semibold bg-white/[0.03] border border-white/[0.08] text-zinc-300 hover:text-white hover:border-white/[0.15] transition-all duration-300">
+                  className="apple-btn-secondary px-8 py-3.5 rounded-2xl font-semibold text-[15px] bg-white/[0.03] border border-white/[0.08] text-zinc-300 hover:text-white"
+                >
                   {t('landing.signIn')}
                 </motion.button>
-              </div>
+              </motion.div>
             </motion.div>
 
-            {/* Feature Cards */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.35, duration: 0.6 }} className="relative z-10 mt-20 grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-2xl w-full">
+            {/* Feature Cards — staggered entrance with spring hover */}
+            <motion.div
+              initial="initial" animate="animate"
+              variants={{ animate: { transition: { staggerChildren: 0.1, delayChildren: 0.5 } } }}
+              className="relative z-10 mt-24 grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-2xl w-full"
+            >
               {[
                 { icon: '🧠', title: t('landing.featureMemory'), desc: t('landing.featureMemoryDesc') },
                 { icon: '📋', title: t('landing.featureInstructions'), desc: t('landing.featureInstructionsDesc') },
                 { icon: '🔗', title: t('landing.featureInvite'), desc: t('landing.featureInviteDesc') },
               ].map((f, i) => (
-                <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6 text-center hover:border-white/[0.1] transition-all duration-300">
-                  <div className="text-3xl mb-3">{f.icon}</div>
-                  <div className="text-sm font-semibold text-zinc-200">{f.title}</div>
-                  <div className="text-xs text-zinc-500 mt-1.5 leading-relaxed">{f.desc}</div>
-                </div>
+                <motion.div
+                  key={i}
+                  variants={staggerItemSlow}
+                  whileHover={{ y: -4, transition: springGentle }}
+                  className="apple-glass rounded-2xl p-7 text-center hover:border-white/[0.1] transition-colors duration-300 group"
+                >
+                  <div className="text-3xl mb-3 transition-transform duration-500 group-hover:scale-110">{f.icon}</div>
+                  <div className="text-sm font-semibold text-zinc-200 tracking-[-0.01em]">{f.title}</div>
+                  <div className="text-xs text-zinc-500 mt-2 leading-relaxed">{f.desc}</div>
+                </motion.div>
               ))}
             </motion.div>
 
@@ -520,27 +596,31 @@ export default function Home() {
               rel="noopener noreferrer"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.55, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-              className="relative z-10 mt-10 w-full max-w-2xl rounded-2xl bg-gradient-to-r from-gray-800 to-gray-900 border border-white/[0.06] p-5 flex items-center gap-4 group hover:border-white/[0.12] transition-all duration-300 cursor-pointer"
+              transition={{ delay: 0.7, duration: 0.6, ease: easeApple }}
+              whileHover={{ y: -2, transition: springGentle }}
+              className="relative z-10 mt-12 w-full max-w-2xl rounded-2xl apple-glass-strong p-5 flex items-center gap-4 group cursor-pointer"
             >
-              <svg className="w-6 h-6 text-white flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-              </svg>
+              <div className="w-10 h-10 rounded-xl bg-white/[0.06] flex items-center justify-center flex-shrink-0 group-hover:bg-white/[0.1] transition-colors duration-300">
+                <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+              </div>
               <span className="text-sm font-semibold text-zinc-200 group-hover:text-white transition-colors duration-300">{t('github.star')}</span>
-              <svg className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 ms-auto transition-colors duration-300 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-300 ms-auto transition-all duration-300 group-hover:translate-x-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
             </motion.a>
 
             {/* ── Z.AI GLM 5 Turbo Promo ── */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ delay: 0.85, duration: 0.6, ease: easeApple }}
+              whileHover={{ y: -2, transition: springGentle }}
               className="relative z-10 mt-6 mb-4 w-full max-w-2xl"
             >
-              <div className="relative rounded-2xl bg-white/[0.03] border border-white/[0.06] p-8 overflow-hidden hover:border-emerald-500/20 transition-all duration-500">
-                {/* Glowing accent */}
-                <div className="absolute -top-16 -right-16 w-32 h-32 bg-emerald-500/10 rounded-full blur-[80px]" />
-                <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-cyan-500/[0.06] rounded-full blur-[80px]" />
+              <div className="relative rounded-2xl apple-glass p-8 overflow-hidden hover:border-emerald-500/20 transition-all duration-500">
+                {/* Glowing accent — animated */}
+                <div className="absolute -top-16 -right-16 w-32 h-32 bg-emerald-500/10 rounded-full blur-[80px]" style={{ animation: 'orb-drift-2 15s ease-in-out infinite' }} />
+                <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-cyan-500/[0.06] rounded-full blur-[80px]" style={{ animation: 'orb-drift-1 18s ease-in-out infinite' }} />
 
                 <div className="relative z-10">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium mb-5">
@@ -551,15 +631,18 @@ export default function Home() {
                   <h3 className="text-lg font-semibold text-zinc-100 mb-2">{t('promo.inviteTitle')}</h3>
                   <p className="text-sm text-zinc-400 mb-6 leading-relaxed">{t('promo.inviteDesc')}</p>
 
-                  <a
+                  <motion.a
                     href="https://z.ai/subscribe?ic=R0K78RJKNW"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 transition-all duration-300 hover:scale-[1.03]"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    transition={spring}
+                    className="apple-btn-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl font-semibold text-[14px] bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_8px_24px_-8px_rgba(16,185,129,0.25)]"
                   >
                     {t('promo.joinNow')}
                     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                  </a>
+                  </motion.a>
                 </div>
               </div>
             </motion.div>
@@ -568,18 +651,25 @@ export default function Home() {
 
         {/* ════════════ AUTH ════════════ */}
         {view === 'auth' && (
-          <section className="flex-1 flex items-center justify-center p-4">
-            <motion.div {...modalContent} className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-10 w-full max-w-md">
+          <section className="flex-1 flex items-center justify-center p-4 relative">
+            {/* Subtle background orb */}
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-emerald-500/[0.04] rounded-full blur-[160px]" style={{ animation: 'orb-drift-1 20s ease-in-out infinite' }} />
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-10 w-full max-w-md relative z-10">
               <div className="text-center mb-8">
-                <div className="text-4xl mb-3">🧠</div>
-                <h2 className="text-2xl font-bold text-zinc-100">{authMode === 'register' ? t('auth.createAccount') : t('auth.signIn')}</h2>
-                <p className="text-zinc-500 text-sm mt-1.5">{t('auth.tagline')}</p>
+                <motion.div
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ ...springBounce, delay: 0.15 }}
+                  className="text-4xl mb-3"
+                >🧠</motion.div>
+                <h2 className="text-2xl font-bold text-zinc-100 tracking-[-0.02em]">{authMode === 'register' ? t('auth.createAccount') : t('auth.signIn')}</h2>
+                <p className="text-zinc-500 text-sm mt-2">{t('auth.tagline')}</p>
               </div>
               <div className="space-y-5">
                 <div>
                   <label className="block text-xs text-zinc-500 mb-1.5 font-medium">{t('auth.username')}</label>
                   <input value={username} onChange={e => setUsername(e.target.value)}
-                    className="w-full bg-white/[0.03] border border-white/[0.08] text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-zinc-100 placeholder:text-zinc-600 transition-all duration-200"
+                    className="w-full bg-white/[0.03] border border-white/[0.08] text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/20 text-zinc-100 placeholder:text-zinc-600 transition-all duration-300"
                     placeholder={t('auth.usernamePlaceholder')} />
                 </div>
                 {authMode === 'register' ? (
@@ -614,15 +704,25 @@ export default function Home() {
                       placeholder={t('auth.loginTokenPlaceholder')} />
                   </div>
                 )}
-                {authError && <p className="text-red-400 text-sm">{authError}</p>}
-                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={handleAuth} disabled={authLoading || !username || (authMode === 'login' && !loginToken) || (authMode === 'register' && tokenMode === 'custom' && loginToken.trim().length < 8)}
-                  className="w-full py-3 rounded-2xl font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20 disabled:opacity-40 transition-all duration-300 hover:shadow-emerald-500/35">
-                  {authLoading ? '...' : authMode === 'register' ? t('auth.createAccount') : t('auth.signIn')}
+                <AnimatePresence>
+                  {authError && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -8, height: 0 }}
+                      animate={{ opacity: 1, y: 0, height: 'auto' }}
+                      exit={{ opacity: 0, y: -8, height: 0 }}
+                      transition={{ duration: 0.25, ease: easeApple }}
+                      className="text-red-400 text-sm overflow-hidden"
+                    >{authError}</motion.p>
+                  )}
+                </AnimatePresence>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} transition={spring} onClick={handleAuth} disabled={authLoading || !username || (authMode === 'login' && !loginToken) || (authMode === 'register' && tokenMode === 'custom' && loginToken.trim().length < 8)}
+                  className="apple-btn-primary w-full py-3.5 rounded-2xl font-semibold text-[15px] bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_8px_32px_-8px_rgba(16,185,129,0.25)] disabled:opacity-40 disabled:cursor-not-allowed">
+                  {authLoading ? <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : authMode === 'register' ? t('auth.createAccount') : t('auth.signIn')}
                 </motion.button>
                 <p className="text-center text-sm text-zinc-500">
                   {authMode === 'register' ? t('auth.alreadyHaveAccount') : t('auth.needAccount')}{' '}
                   <button onClick={() => { setAuthMode(authMode === 'register' ? 'login' : 'register'); setAuthError(''); setTokenMode('auto'); setLoginToken('') }}
-                    className="text-emerald-400 hover:text-emerald-300 transition-colors duration-200">
+                    className="text-emerald-400 hover:text-emerald-300 font-medium transition-colors duration-200">
                     {authMode === 'register' ? t('auth.signIn') : t('auth.register')}
                   </button>
                 </p>
@@ -633,104 +733,178 @@ export default function Home() {
 
         {/* ════════════ DASHBOARD ════════════ */}
         {view === 'dashboard' && (
-          <section className="flex-1 p-4 md:p-6 max-w-4xl mx-auto w-full">
-            <header className="flex items-center justify-between mb-10">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🧠</span>
-                <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">MemTrant</h1>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-zinc-500">{username}</span>
-                <button onClick={() => { setCurrentLoginToken(''); setView('landing') }} className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors duration-200">{t('dashboard.logout')}</button>
+          <motion.section
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, ease: easeApple }}
+            className="flex-1 p-4 md:p-6 max-w-4xl mx-auto w-full"
+          >
+            {/* Sticky header with glass effect */}
+            <header className="sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 py-4 mb-8 bg-[#09090b]/80 backdrop-blur-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <motion.span
+                    initial={{ scale: 0, rotate: -180 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ ...springBounce, delay: 0.1 }}
+                    className="text-2xl"
+                  >🧠</motion.span>
+                  <h1 className="text-2xl font-bold tracking-[-0.02em] bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">MemTrant</h1>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-zinc-500 font-medium">{username}</span>
+                  <button onClick={() => { setCurrentLoginToken(''); setView('landing') }} className="apple-btn-secondary text-xs px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-zinc-500 hover:text-zinc-200">{t('dashboard.logout')}</button>
+                </div>
               </div>
             </header>
 
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-zinc-100 tracking-tight">{t('dashboard.yourTeams')}</h2>
-              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+            <div className="flex items-center justify-between mb-8">
+              <motion.h2
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, ease: easeApple, delay: 0.1 }}
+                className="text-xl font-semibold text-zinc-100 tracking-[-0.01em]"
+              >{t('dashboard.yourTeams')}</motion.h2>
+              <motion.button
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={spring}
+                whileHover={{ scale: 1.03, y: -1 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => { setNewTeamName(''); setNewTeamDesc(''); setTeamError(''); setShowNewTeam(true) }}
-                className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 transition-shadow duration-300">
+                className="apple-btn-primary px-5 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_6px_24px_-6px_rgba(16,185,129,0.25)]"
+              >
                 {t('dashboard.newTeam')}
               </motion.button>
             </div>
 
             {teamsLoading ? (
-              <div className="text-center text-zinc-500 py-16">{t('dashboard.loadingTeams')}</div>
-            ) : teams.length === 0 ? (
-              <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-16 text-center">
-                <div className="text-5xl mb-4">📭</div>
-                <p className="text-zinc-400">{t('dashboard.noTeams')}</p>
+              <div className="space-y-3 py-8">
+                {[1,2,3].map(i => <div key={i} className="apple-shimmer h-20 rounded-2xl" />)}
               </div>
+            ) : teams.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: easeApple }}
+                className="apple-glass rounded-2xl p-20 text-center"
+              >
+                <motion.div
+                  animate={{ y: [0, -6, 0] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+                  className="text-5xl mb-5"
+                >📭</motion.div>
+                <p className="text-zinc-400 text-sm">{t('dashboard.noTeams')}</p>
+              </motion.div>
             ) : (
-              <div className="grid gap-3">
-                {teams.map(team => (
-                  <motion.div key={team.id} whileHover={{ scale: 1.005 }}
+              <motion.div
+                initial="initial" animate="animate"
+                variants={{ animate: { transition: { staggerChildren: 0.06 } } }}
+                className="grid gap-3"
+              >
+                {teams.map((team, i) => (
+                  <motion.div
+                    key={team.id}
+                    variants={{ initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: easeApple } } }}
+                    whileHover={{ y: -2, transition: springGentle }}
+                    whileTap={{ scale: 0.99 }}
                     onClick={() => openTeam(team)}
-                    className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 flex items-center justify-between cursor-pointer hover:border-white/[0.12] transition-all duration-300">
+                    className="apple-glass rounded-2xl p-5 flex items-center justify-between cursor-pointer hover:border-white/[0.12] transition-colors duration-300 group"
+                  >
                     <div>
-                      <h3 className="font-semibold text-zinc-100">{team.name}</h3>
-                      <p className="text-xs text-zinc-600 mt-0.5">{team.description || t('dashboard.noDescription')} · {team.slug}</p>
+                      <h3 className="font-semibold text-zinc-100 group-hover:text-white transition-colors duration-200">{team.name}</h3>
+                      <p className="text-xs text-zinc-600 mt-0.5">{team.description || t('dashboard.noDescription')} · <span className="font-mono text-zinc-700">{team.slug}</span></p>
                     </div>
                     <div className="flex items-center gap-4 text-xs text-zinc-500">
-                      {team._count && <span>🤖 {team._count.agents}</span>}
-                      {team._count && <span>📋 {team._count.instructions}</span>}
-                      <span>{formatTimeAgo(team.createdAt)}</span>
+                      {team._count && <span className="flex items-center gap-1"><span className="text-zinc-600">🤖</span>{team._count.agents}</span>}
+                      {team._count && <span className="flex items-center gap-1"><span className="text-zinc-600">📋</span>{team._count.instructions}</span>}
+                      <span className="text-zinc-600">{formatTimeAgo(team.createdAt)}</span>
                     </div>
                   </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
-          </section>
+          </motion.section>
         )}
-
-        {/* ════════════ TEAM DETAIL ════════════ */}
         {view === 'team' && selectedTeam && (
-          <section className="flex-1 flex flex-col max-w-6xl mx-auto w-full">
-            {/* Team header */}
-            <header className="p-4 md:p-6 border-b border-white/[0.06] flex items-center justify-between">
+          <motion.section
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.35, ease: easeApple }}
+            className="flex-1 flex flex-col max-w-6xl mx-auto w-full"
+          >
+            {/* Team header — sticky glass */}
+            <header className="sticky top-0 z-30 p-4 md:p-6 border-b border-white/[0.06] flex items-center justify-between bg-[#09090b]/80 backdrop-blur-2xl">
               <div className="flex items-center gap-3">
-                <button onClick={() => setView('dashboard')} className="text-zinc-500 hover:text-zinc-100 text-sm transition-colors duration-200">{t('team.back')}</button>
+                <motion.button
+                  whileHover={{ x: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setView('dashboard')}
+                  className="text-zinc-500 hover:text-zinc-100 text-sm transition-colors duration-200 flex items-center gap-1.5"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                  {t('team.back')}
+                </motion.button>
                 <div>
-                  <h1 className="text-xl font-bold text-zinc-100 tracking-tight">{selectedTeam.name}</h1>
-                  <p className="text-xs text-zinc-600">/{selectedTeam.slug}</p>
+                  <h1 className="text-xl font-bold text-zinc-100 tracking-[-0.02em]">{selectedTeam.name}</h1>
+                  <p className="text-xs text-zinc-600 font-mono">/{selectedTeam.slug}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setShowToken(true)} className="text-xs bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-1.5 text-zinc-500 hover:text-zinc-200 hover:border-white/[0.15] transition-all duration-200">
+                <button onClick={() => setShowToken(true)} className="apple-btn-secondary text-xs px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-zinc-500 hover:text-zinc-200">
                   {t('team.token')}
                 </button>
                 <button onClick={() => deleteTeam(selectedTeam.slug)}
-                  className="text-xs bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-1.5 text-red-400 hover:text-red-300 hover:border-red-500/30 transition-all duration-200">
+                  className="text-xs px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-red-400/70 hover:text-red-300 hover:border-red-500/20 hover:bg-red-500/5 transition-all duration-300">
                   {t('team.delete')}
                 </button>
               </div>
             </header>
 
-            {/* Tabs */}
-            <nav className="px-4 md:px-6 pt-3 flex gap-1 border-b border-white/[0.06] overflow-x-auto">
-              {tabItems.map(tab => (
-                <button key={tab.key} onClick={() => {
-                  setTeamTab(tab.key)
-                  if (tab.key === 'memory' && !memoryPath && files.length === 0) browsePath('')
-                  if (tab.key === 'invites' && invites.length === 0) loadInvites(selectedTeam.slug)
-                }}
-                  className={`px-4 py-2.5 text-sm whitespace-nowrap border-b-2 transition-all duration-200 ${
-                    teamTab === tab.key
-                      ? 'border-emerald-400 text-emerald-400'
-                      : 'border-transparent text-zinc-500 hover:text-zinc-200'
-                  }`}>
-                  <span className="mr-1.5">{tab.icon}</span>{tab.label}
-                </button>
-              ))}
+            {/* Tabs — Apple-style with animated underline */}
+            <nav className="px-4 md:px-6 pt-2 flex gap-1 border-b border-white/[0.06] overflow-x-auto relative">
+              {tabItems.map(tab => {
+                const isActive = teamTab === tab.key
+                return (
+                  <button key={tab.key} onClick={() => {
+                    setTeamTab(tab.key)
+                    if (tab.key === 'memory' && !memoryPath && files.length === 0) browsePath('')
+                    if (tab.key === 'invites' && invites.length === 0) loadInvites(selectedTeam.slug)
+                  }}
+                    className={`px-4 py-2.5 text-sm whitespace-nowrap transition-all duration-300 relative ${
+                      isActive
+                        ? 'text-emerald-400'
+                        : 'text-zinc-500 hover:text-zinc-200'
+                    }`}>
+                    <span className="mr-1.5">{tab.icon}</span>{tab.label}
+                    {isActive && (
+                      <motion.div
+                        layoutId="active-tab"
+                        className="absolute bottom-0 inset-x-2 h-0.5 bg-emerald-400 rounded-full"
+                        style={{ boxShadow: '0 0 8px rgba(16, 185, 129, 0.4)' }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                  </button>
+                )
+              })}
             </nav>
 
             {/* Tab content */}
             <div className="flex-1 p-4 md:p-6 overflow-auto">
-              {teamLoading ? <div className="text-center text-zinc-500 py-16">{t('team.loading')}</div> : (
+              {teamLoading ? (
+                <div className="space-y-4 py-8">
+                  {[1,2,3,4].map(i => <div key={i} className="apple-shimmer h-24 rounded-2xl" />)}
+                </div>
+              ) : (
                 <>
                   {/* ── OVERVIEW ── */}
                   {teamTab === 'overview' && (
-                    <div className="space-y-6">
+                    <motion.div
+                      initial="initial" animate="animate"
+                      variants={{ animate: { transition: { staggerChildren: 0.06 } } }}
+                      className="space-y-6"
+                    >
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {[
                           { label: t('team.statAgents'), value: agents.length, icon: '🤖' },
@@ -738,23 +912,28 @@ export default function Home() {
                           { label: t('team.statFiles'), value: selectedTeam.fileCount || 0, icon: '📁' },
                           { label: t('team.statStorage'), value: formatBytes(selectedTeam.totalSize || 0), icon: '💾' },
                         ].map((s, i) => (
-                          <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
-                            <div className="text-xs text-zinc-500 mb-1.5 font-medium">{s.icon} {s.label}</div>
-                            <div className="text-2xl font-bold text-zinc-100">{s.value}</div>
-                          </div>
+                          <motion.div
+                            key={i}
+                            variants={{ initial: { opacity: 0, y: 12, scale: 0.97 }, animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.4, ease: easeApple } } }}
+                            whileHover={{ y: -2, transition: springGentle }}
+                            className="apple-glass rounded-2xl p-5"
+                          >
+                            <div className="text-xs text-zinc-500 mb-2 font-medium">{s.icon} {s.label}</div>
+                            <div className="text-2xl font-bold text-zinc-100 tracking-[-0.02em]">{s.value}</div>
+                          </motion.div>
                         ))}
                       </div>
-                      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
+                      <motion.div variants={staggerItem} className="apple-glass rounded-2xl p-6">
                         <h3 className="text-sm font-semibold text-zinc-300 mb-2">{t('team.description')}</h3>
                         <p className="text-sm text-zinc-500 leading-relaxed">{selectedTeam.description || t('team.noDescription')}</p>
-                      </div>
-                      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
+                      </motion.div>
+                      <motion.div variants={staggerItem} className="apple-glass rounded-2xl p-6">
                         <h3 className="text-sm font-semibold text-zinc-300 mb-2">{t('team.teamLead')}</h3>
                         {agents.find(a => a.role === 'lead')
                           ? <p className="text-sm text-zinc-400">👑 {agents.find(a => a.role === 'lead')!.name}</p>
                           : <p className="text-sm text-zinc-600">{t('team.noLead')}</p>}
-                      </div>
-                      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
+                      </motion.div>
+                      <motion.div variants={staggerItem} className="apple-glass rounded-2xl p-6">
                         <h3 className="text-sm font-semibold text-zinc-300 mb-3">{t('team.recentInstructions')}</h3>
                         {instructions.length === 0
                           ? <p className="text-sm text-zinc-600">{t('team.noInstructions')}</p>
@@ -764,8 +943,8 @@ export default function Home() {
                               <span className={`text-xs px-2.5 py-0.5 rounded-full border ${statusColors[inst.status] || statusColors.pending}`}>{inst.status}</span>
                             </div>
                           ))}</div>}
-                      </div>
-                    </div>
+                      </motion.div>
+                    </motion.div>
                   )}
 
                   {/* ── AGENTS ── */}
@@ -773,16 +952,16 @@ export default function Home() {
                     <div>
                       <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-semibold text-zinc-100 tracking-tight">{t('team.agents')} ({agents.length})</h2>
-                        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                        <motion.button whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }} transition={spring}
                           onClick={() => { setNewAgentName(''); setNewAgentRole('worker'); setShowNewAgent(true) }}
-                          className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 transition-shadow duration-300">
+                          className="apple-btn-primary px-5 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_6px_24px_-6px_rgba(16,185,129,0.25)]">
                           {t('team.addAgent')}
                         </motion.button>
                       </div>
                       {agents.length === 0
-                        ? <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-16 text-center text-zinc-600">{t('team.noAgents')}</div>
-                        : <div className="space-y-2">{agents.map(a => (
-                          <div key={a.id} className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 flex items-center justify-between hover:border-white/[0.1] transition-all duration-200">
+                        ? <div className="apple-glass rounded-2xl p-16 text-center text-zinc-600">{t('team.noAgents')}</div>
+                        : <motion.div initial="initial" animate="animate" variants={{ animate: { transition: { staggerChildren: 0.05 } } }} className="space-y-2">{agents.map(a => (
+                          <motion.div key={a.id} variants={staggerItem} whileHover={{ x: 4, transition: { duration: 0.2 } }} className="apple-glass rounded-2xl p-5 flex items-center justify-between hover:border-white/[0.1] transition-colors duration-300">
                             <div className="flex items-center gap-3">
                               <span className="text-lg">{roleIcons[a.role] || '🤖'}</span>
                               <div>
@@ -800,8 +979,8 @@ export default function Home() {
               </select>
               <button onClick={() => removeAgent(a.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors duration-200">{t('team.remove')}</button>
             </div>
-          </div>
-        ))}</div>}
+          </motion.div>
+        ))}</motion.div>}
                     </div>
                   )}
 
@@ -815,9 +994,9 @@ export default function Home() {
                         </div>
                         <button onClick={() => browsePath('')} className="text-xs text-zinc-600 hover:text-zinc-200 transition-colors duration-200">{t('team.rootBtn')}</button>
                       </div>
-                      {files.length === 0 && !memoryPath && <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-16 text-center text-zinc-600">{t('team.memoryEmpty')}</div>}
+                      {files.length === 0 && !memoryPath && <div className="apple-glass rounded-2xl p-16 text-center text-zinc-600">{t('team.memoryEmpty')}</div>}
                       {files.length > 0 && (
-                        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl divide-y divide-white/[0.04] overflow-hidden">
+                        <div className="apple-glass rounded-2xl divide-y divide-white/[0.04] overflow-hidden">
                           {memoryPath && (
                             <button onClick={() => browsePath(memoryPath.split('/').slice(0, -1).join('/'))}
                               className="w-full px-5 py-3.5 text-left text-sm text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.02] flex items-center gap-2 transition-colors duration-200">
@@ -836,7 +1015,7 @@ export default function Home() {
                         </div>
                       )}
                       {previewName && (
-                        <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-6">
+                        <div className="apple-glass rounded-2xl p-6">
                           <div className="flex items-center justify-between mb-3">
                             <span className="text-sm font-semibold text-zinc-300">📄 {previewName}</span>
                             <button onClick={() => { setPreviewContent(''); setPreviewName('') }} className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors duration-200">{t('team.close')}</button>
@@ -852,16 +1031,16 @@ export default function Home() {
                     <div>
                       <div className="flex items-center justify-between mb-6">
                         <h2 className="text-xl font-semibold text-zinc-100 tracking-tight">{t('team.tabInstructions')} ({instructions.length})</h2>
-                        <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                        <motion.button whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }} transition={spring}
                           onClick={() => { setNewInstTitle(''); setNewInstContent(''); setNewInstPriority('normal'); setNewInstAssigneeId(''); setShowNewInstruction(true) }}
-                          className="px-5 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 transition-shadow duration-300">
+                          className="apple-btn-primary px-5 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_6px_24px_-6px_rgba(16,185,129,0.25)]">
                           {t('team.newInstruction')}
                         </motion.button>
                       </div>
                       {instructions.length === 0
-                        ? <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-16 text-center text-zinc-600">{t('team.noInstructions')}</div>
+                        ? <div className="apple-glass rounded-2xl p-16 text-center text-zinc-600">{t('team.noInstructions')}</div>
                         : <div className="space-y-3">{instructions.map(inst => (
-                          <div key={inst.id} className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 hover:border-white/[0.1] transition-all duration-200">
+                          <div key={inst.id} className="apple-glass rounded-2xl p-5 hover:border-white/[0.1] transition-all duration-200">
                             <div className="flex items-start justify-between mb-2">
                               <div>
                                 <h3 className="font-semibold text-zinc-100">{inst.title}</h3>
@@ -907,9 +1086,9 @@ export default function Home() {
                         </div>
                       </div>
                       {invites.length === 0
-                        ? <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-16 text-center text-zinc-600">{t('team.noInvites')}</div>
+                        ? <div className="apple-glass rounded-2xl p-16 text-center text-zinc-600">{t('team.noInvites')}</div>
                         : <div className="space-y-2">{invites.map(inv => (
-                          <div key={inv.id} className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5 flex items-center justify-between hover:border-white/[0.1] transition-all duration-200">
+                          <div key={inv.id} className="apple-glass rounded-2xl p-5 flex items-center justify-between hover:border-white/[0.1] transition-all duration-200">
                             <div className="flex items-center gap-3">
                               <span className={`text-xs px-2.5 py-0.5 rounded-full border ${inv.type === 'human' ? 'bg-violet-500/15 text-violet-400 border-violet-500/30' : 'bg-sky-500/15 text-sky-400 border-sky-500/30'}`}>
                                 {inv.type}
@@ -957,7 +1136,7 @@ export default function Home() {
                   {teamTab === 'api' && (
                     <div className="space-y-5">
                       <h2 className="text-xl font-semibold text-zinc-100 tracking-tight">{t('team.apiReference')}</h2>
-                      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl overflow-hidden">
+                      <div className="apple-glass rounded-2xl overflow-hidden">
                         <table className="w-full text-sm">
                           <thead><tr className="border-b border-white/[0.06]">
                             <th className="text-start px-5 py-3 text-zinc-500 font-medium text-xs uppercase tracking-wider">{t('team.method')}</th>
@@ -985,7 +1164,7 @@ export default function Home() {
                           </tbody>
                         </table>
                       </div>
-                      <div className="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                      <div className="apple-glass rounded-2xl p-5">
                         <div className="flex gap-1 mb-4">
                           {(['curl', 'python', 'nodejs'] as const).map(snippet => (
                             <button key={snippet} onClick={() => setSnippetTab(snippet)}
@@ -1001,38 +1180,30 @@ export default function Home() {
                 </>
               )}
             </div>
-          </section>
+          </motion.section>
         )}
       </main>
 
       {/* ════════════ FOOTER ════════════ */}
-      <footer className="mt-auto border-t border-white/[0.06] px-6 py-8">
-        <div className="max-w-4xl mx-auto space-y-4">
-          <p className="text-center text-xs text-zinc-600">{t('footer.text')}</p>
+      <footer className="mt-auto border-t border-white/[0.04] px-6 py-8">
+        <div className="max-w-4xl mx-auto space-y-3">
+          <p className="text-center text-[11px] text-zinc-700 tracking-wide uppercase">{t('footer.text')}</p>
           <div className="flex items-center justify-center gap-1.5 text-xs text-zinc-500">
             <span>{t('credits.developedBy')}</span>
             <span className="text-zinc-300 font-semibold">{t('credits.name')}</span>
           </div>
-          <div className="flex items-center justify-center gap-3 flex-wrap">
-            <a href="https://t.me/VibeCodePrompterSystem" target="_blank" rel="noopener noreferrer nofollow"
-              className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors duration-200">
-              {t('credits.telegram')}
-            </a>
-            <span className="text-zinc-800 select-none">·</span>
-            <a href="https://www.linkedin.com/in/r%D0%BEman-m-793b3310/" target="_blank" rel="noopener noreferrer nofollow"
-              className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors duration-200">
-              LinkedIn
-            </a>
-            <span className="text-zinc-800 select-none">·</span>
-            <a href="https://www.rommark.dev" target="_blank" rel="noopener noreferrer nofollow"
-              className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors duration-200">
-              {t('credits.portfolio')}
-            </a>
-            <span className="text-zinc-800 select-none">·</span>
-            <a href="https://claw.rommark.dev" target="_blank" rel="noopener noreferrer nofollow"
-              className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors duration-200">
-              {t('credits.blog')}
-            </a>
+          <div className="flex items-center justify-center gap-2.5 flex-wrap">
+            {[
+              { href: 'https://t.me/VibeCodePrompterSystem', label: t('credits.telegram') },
+              { href: 'https://www.linkedin.com/in/r%D0%BEman-m-793b3310/', label: 'LinkedIn' },
+              { href: 'https://www.rommark.dev', label: t('credits.portfolio') },
+              { href: 'https://claw.rommark.dev', label: t('credits.blog') },
+            ].map((link, i) => (
+              <a key={i} href={link.href} target="_blank" rel="noopener noreferrer nofollow"
+                className="text-[11px] text-zinc-600 hover:text-emerald-400 transition-colors duration-300 hover:underline underline-offset-2">
+                {link.label}
+              </a>
+            ))}
           </div>
         </div>
       </footer>
@@ -1044,8 +1215,8 @@ export default function Home() {
       {/* ── Signup Modal ── */}
       <AnimatePresence>
         {showSignupModal && (
-          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
-            <motion.div {...modalContent} className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-10 w-full max-w-md relative">
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-[100]">
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-10 w-full max-w-md relative">
               <h2 className="text-xl font-bold text-zinc-100 mb-1">{t('modal.accountCreated')}</h2>
               <p className="text-sm text-zinc-500 mb-5">{t('modal.saveCredentials')}</p>
               <div className="space-y-3 mb-5">
@@ -1095,8 +1266,8 @@ export default function Home() {
       {/* ── New Team Modal ── */}
       <AnimatePresence>
         {showNewTeam && (
-          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowNewTeam(false)}>
-            <motion.div {...modalContent} className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setShowNewTeam(false)}>
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-bold text-zinc-100 mb-5">{t('modal.createTeam')}</h2>
               <div className="space-y-4">
                 <div>
@@ -1128,8 +1299,8 @@ export default function Home() {
       {/* ── New Agent Modal ── */}
       <AnimatePresence>
         {showNewAgent && (
-          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowNewAgent(false)}>
-            <motion.div {...modalContent} className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setShowNewAgent(false)}>
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-bold text-zinc-100 mb-5">{t('modal.addAgent')}</h2>
               <div className="space-y-4">
                 <div>
@@ -1163,8 +1334,8 @@ export default function Home() {
       {/* ── New Instruction Modal ── */}
       <AnimatePresence>
         {showNewInstruction && (
-          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowNewInstruction(false)}>
-            <motion.div {...modalContent} className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setShowNewInstruction(false)}>
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-bold text-zinc-100 mb-5">{t('modal.newInstruction')}</h2>
               <div className="space-y-4">
                 <div>
@@ -1215,8 +1386,8 @@ export default function Home() {
       {/* ── Invite Agent Modal ── */}
       <AnimatePresence>
         {showNewInviteAgent && (
-          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowNewInviteAgent(false)}>
-            <motion.div {...modalContent} className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setShowNewInviteAgent(false)}>
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-bold text-zinc-100 mb-5">{t('modal.inviteAgent')}</h2>
               {inviteResult ? (
                 <div className="space-y-4">
@@ -1270,7 +1441,7 @@ export default function Home() {
       {/* ── Invite Human Modal ── */}
       <AnimatePresence>
         {showNewInviteHuman && (
-          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50">
             <motion.div {...modalContent} className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-8 w-full max-w-md">
               <div className="text-center py-10">
                 <div className="text-3xl mb-3 animate-spin">⏳</div>
@@ -1284,7 +1455,7 @@ export default function Home() {
       {/* ── Human Invite Result Modal ── */}
       <AnimatePresence>
         {humanInviteResult && !showNewInviteHuman && (
-          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center p-4 z-[100]">
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-[100]">
             <motion.div {...modalContent} className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-8 w-full max-w-md">
               <h2 className="text-lg font-bold text-zinc-100 mb-1">{t('modal.humanInviteCreated')}</h2>
               <p className="text-sm text-amber-400 mb-5">{t('modal.shareCredentials')}</p>
@@ -1339,8 +1510,8 @@ export default function Home() {
       {/* ── Token Modal ── */}
       <AnimatePresence>
         {showToken && selectedTeam && (
-          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setShowToken(false)}>
-            <motion.div {...modalContent} className="bg-white/[0.03] border border-white/[0.06] rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setShowToken(false)}>
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-md" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-bold text-zinc-100 mb-2">{t('modal.ownerToken')}</h2>
               <p className="text-xs text-zinc-600 mb-4 leading-relaxed">{t('modal.ownerTokenDesc')}</p>
               <div className="bg-black/40 rounded-xl p-4 mb-5">
