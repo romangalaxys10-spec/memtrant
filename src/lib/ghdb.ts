@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { execFile } from 'child_process'
+import { waitUntil } from '@vercel/functions'
 
 // GitHub-as-database: persists the SQLite file and the memory-file uploads to
 // the private memtrant-brain repo. On cold start we hydrate local /tmp copies
@@ -135,25 +136,40 @@ async function flushPair(pair: Pair, label = 'sync'): Promise<void> {
   }
 }
 
-function schedule(name: 'db' | 'files', delayMs = 1500) {
+function schedule(name: 'db' | 'files', delayMs = 1500, before?: () => Promise<void>) {
   if (!ENABLED) return
   const pair = pairs[name]
   if (!pair) return
   if (pair.timer) clearTimeout(pair.timer)
-  pair.timer = setTimeout(async () => {
+  pair.timer = setTimeout(() => {
     pair.timer = null
-    if (pair.inFlight) {
-      // a write happened mid-flight — run another pass when this one lands
-      pair.pending = true
-      return
-    }
-    pair.inFlight = flushPair(pair).finally(() => {
-      pair.inFlight = null
-      if (pair.pending) {
-        pair.pending = false
-        schedule(name, 0)
-      }
-    })
+    // waitUntil keeps the serverless instance alive for the flush — plain
+    // setTimeout callbacks never run after the response is sent on Vercel.
+    waitUntil(
+      (async () => {
+        try {
+          if (before) await before()
+          if (pair.inFlight) {
+            // a write happened mid-flight — run another pass when this one lands
+            pair.pending = true
+            return
+          }
+          pair.inFlight = flushPair(pair).finally(() => {
+            pair.inFlight = null
+            if (pair.pending) {
+              pair.pending = false
+              schedule(name, 0, before)
+            }
+          })
+          await pair.inFlight
+        } catch (e) {
+          // network-level failure: flushPair only classifies HTTP errors, so
+          // retry here with backoff (cap at 3 attempts)
+          if (++pair.attempts <= 3) schedule(name, 5000 * pair.attempts, before)
+          else console.error('ghdb flush task failed permanently:', (e as Error).message)
+        }
+      })()
+    )
   }, delayMs)
 }
 
@@ -226,7 +242,7 @@ export function scheduleDbFlush() {
 // The files "live data" is a directory, not a single file: rebuild the tarball
 // right before flushing it.
 export function scheduleFilesFlush() {
-  schedule('files', 3000)
+  schedule('files', 3000, createFilesTar)
 }
 
 // Best-effort flush if the instance is being recycled
