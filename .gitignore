@@ -52,3 +52,10 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Agent context / tool results
+agent-ctx/
+tool-results/
+worklog.md
+.zscripts/
+download/
