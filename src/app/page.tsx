@@ -2201,10 +2201,10 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
         )}
       </AnimatePresence>
 
-      {/* ── Agent/Human Join Prompt Modal ── */}
+      {/* ── Agent/Human Join Prompt Modal (always topmost) ── */}
       <AnimatePresence>
         {promptModal && (
-          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setPromptModal(null)}>
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-[200]" onClick={() => setPromptModal(null)}>
             <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-zinc-100">{promptModal.banner.includes('agent') ? '🤖 Agent Join Prompt' : '👋 Welcome Prompt'}</h2>
