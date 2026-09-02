@@ -491,6 +491,14 @@ export default function Home() {
   }
 
   // ── Auth ─────────────────────────────────────────────────────────────────
+  const SESSION_KEY = 'memtrant_session'
+  function saveSession(username: string, token: string) {
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify({ username, token })) } catch {}
+  }
+  function clearSession() {
+    try { localStorage.removeItem(SESSION_KEY) } catch {}
+  }
+
   async function handleAuth() {
     setAuthError('')
     setAuthLoading(true)
@@ -516,11 +524,13 @@ export default function Home() {
         setCurrentLoginToken(data.loginToken)
         setShowSignupModal(true)
         setView('dashboard')
-        await loadTeams()
+        saveSession(username, data.loginToken)
+        await loadTeams(data.loginToken)
       } else {
         setCurrentLoginToken(loginToken)
         setView('dashboard')
-        await loadTeams()
+        saveSession(username, loginToken)
+        await loadTeams(loginToken)
       }
     } catch (e: any) {
       setAuthError(e.message)
@@ -529,11 +539,33 @@ export default function Home() {
     }
   }
 
-  async function loadTeams() {
+  // Session persistence: restore login after a page refresh (validated server-side)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY)
+      if (!raw) return
+      const s = JSON.parse(raw)
+      if (!s?.username || !s?.token) return
+      fetch(`${API}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: s.username, loginToken: s.token }),
+      }).then(async (res) => {
+        if (!res.ok) { clearSession(); return }
+        setUsername(s.username)
+        setCurrentLoginToken(s.token)
+        setView('dashboard')
+        loadTeams(s.token)
+      }).catch(() => {})
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function loadTeams(tokenArg?: string) {
     setTeamsLoading(true)
     try {
       const res = await fetch(`${API}/api/teams`, {
-        headers: { Authorization: `Bearer ${currentLoginToken}` },
+        headers: { Authorization: `Bearer ${tokenArg ?? currentLoginToken}` },
       })
       const data = await res.json()
       setTeams(Array.isArray(data) ? data : data.teams || [])
@@ -1338,7 +1370,7 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-sm text-zinc-500 font-medium">{username}</span>
-                  <button onClick={() => { setCurrentLoginToken(''); setView('landing') }} className="apple-btn-secondary text-xs px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-zinc-500 hover:text-zinc-200">{t('dashboard.logout')}</button>
+                  <button onClick={() => { clearSession(); setCurrentLoginToken(''); setView('landing') }} className="apple-btn-secondary text-xs px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-zinc-500 hover:text-zinc-200">{t('dashboard.logout')}</button>
                 </div>
               </div>
             </header>
