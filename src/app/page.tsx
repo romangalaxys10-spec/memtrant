@@ -209,6 +209,9 @@ export default function Home() {
   // API snippets
   const [snippetTab, setSnippetTab] = useState<'curl' | 'python' | 'nodejs'>('curl')
 
+  // Agent detail
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+
   // Dialogs
   const [showNewTeam, setShowNewTeam] = useState(false)
   const [showNewAgent, setShowNewAgent] = useState(false)
@@ -334,7 +337,8 @@ export default function Home() {
         fetch(`${API}/api/teams/${slug}/instructions`, { headers: authHeaders }),
       ])
       const teamData = await teamRes.json()
-      setSelectedTeam(teamData.team || teamData)
+      const teamRaw = teamData.team || teamData
+      setSelectedTeam({ ...teamRaw, fileCount: teamData.files?.length || 0, totalSize: teamData.storageBytes || 0 })
       const agentData = await agentRes.json()
       setAgents(Array.isArray(agentData) ? agentData : agentData.agents || [])
       const instData = await instRes.json()
@@ -1198,28 +1202,36 @@ export default function Home() {
                         </motion.button>
                       </div>
                       {agents.length === 0
-                        ? <div className="apple-glass rounded-2xl p-16 text-center text-zinc-600">{t('team.noAgents')}</div>
-                        : <motion.div initial="initial" animate="animate" variants={{ animate: { transition: { staggerChildren: 0.05 } } }} className="space-y-2">{agents.map(a => (
-                          <motion.div key={a.id} variants={staggerItem} whileHover={{ x: 4, transition: { duration: 0.2 } }} className="apple-glass rounded-2xl p-5 flex items-center justify-between hover:border-white/[0.1] transition-colors duration-300">
-                            <div className="flex items-center gap-3">
-                              <span className="text-lg">{roleIcons[a.role] || '🤖'}</span>
-                              <div>
-                                <div className="font-semibold text-zinc-100">{a.name}</div>
-                                <div className="text-xs text-zinc-600">{a.role} · {formatTimeAgo(a.lastSeen)}</div>
+                        ? <div className="apple-glass rounded-2xl p-16 text-center">
+                            <div className="text-4xl mb-4">🤖</div>
+                            <p className="text-zinc-600 text-sm">{t('team.noAgents')}</p>
+                          </div>
+                        : <>
+                        <p className="text-xs text-zinc-600 mb-3">{t('modal.clickToViewAgent')}</p>
+                        <motion.div initial="initial" animate="animate" variants={{ animate: { transition: { staggerChildren: 0.05 } } }} className="space-y-2">{agents.map(a => (
+                          <motion.div key={a.id} variants={staggerItem} whileHover={{ x: 4, transition: { duration: 0.2 } }}
+                            onClick={() => setSelectedAgent(a)}
+                            className="apple-glass rounded-2xl p-4 md:p-5 flex items-center justify-between hover:border-emerald-500/20 cursor-pointer transition-colors duration-300 group">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="text-lg flex-shrink-0">{roleIcons[a.role] || '🤖'}</span>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-zinc-100 group-hover:text-white transition-colors duration-200">{a.name}</div>
+                                <div className="text-xs text-zinc-600">{a.role} · {formatTimeAgo(a.lastSeen)}{a._count ? ` · ${a._count.assignedInstructions} tasks` : ''}</div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
                               <span className="text-sm">{statusIcons[a.status] || '⚫'}</span>
                               <select value={a.role} onChange={e => updateAgentRole(a.id, e.target.value)}
-                className="bg-white/[0.03] border border-white/[0.08] text-xs rounded-lg px-2 py-1 text-zinc-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/30">
-                <option value="worker">{t('team.roleWorker')}</option>
-                <option value="observer">{t('team.roleObserver')}</option>
-                <option value="lead">{t('team.roleLead')}</option>
-              </select>
-              <button onClick={() => removeAgent(a.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors duration-200">{t('team.remove')}</button>
-            </div>
-          </motion.div>
-        ))}</motion.div>}
+                                className="bg-white/[0.03] border border-white/[0.08] text-xs rounded-lg px-2 py-1 text-zinc-400 focus:outline-none focus:ring-1 focus:ring-emerald-500/30">
+                                <option value="worker">{t('team.roleWorker')}</option>
+                                <option value="observer">{t('team.roleObserver')}</option>
+                                <option value="lead">{t('team.roleLead')}</option>
+                              </select>
+                              <button onClick={() => removeAgent(a.id)} className="text-xs text-red-400/70 hover:text-red-300 transition-colors duration-200 px-1.5 py-1 rounded-lg hover:bg-red-500/10">{t('team.remove')}</button>
+                            </div>
+                          </motion.div>
+                        ))}</motion.div>
+                        </>}
                     </div>
                   )}
 
@@ -1472,11 +1484,11 @@ export default function Home() {
               </div>
               <div className="flex gap-2 mb-5">
                 <button onClick={() => {
-                  copyToClipboard(`Username: ${username}\${BASE}nLogin Token: ${loginTokenSaved}`)
+                  copyToClipboard(`Username: ${username}\nLogin Token: ${loginTokenSaved}`)
                 }} className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20">
                   {copiedFeedback || t('modal.copyToClipboard')}
                 </button>
-                <button onClick={() => downloadAsFile(`Username: ${username}\${BASE}nLogin Token: ${loginTokenSaved}\${BASE}n`, 'memtrant-credentials.txt')}
+                <button onClick={() => downloadAsFile(`Username: ${username}\nLogin Token: ${loginTokenSaved}\n`, 'memtrant-credentials.txt')}
                   className="flex-1 py-2.5 rounded-2xl text-sm font-medium bg-white/[0.03] border border-white/[0.08] text-zinc-300 hover:border-white/[0.15] transition-all duration-200">
                   {t('modal.downloadAsFile')}
                 </button>
@@ -1724,16 +1736,16 @@ export default function Home() {
               <div className="flex gap-2">
                 <button onClick={() => {
                   const text = humanInviteResult.username
-                    ? `Invite Code: ${humanInviteResult.code}\${BASE}nUsername: ${humanInviteResult.username}\${BASE}nLogin Token: ${humanInviteResult.token}`
-                    : `Invite Code: ${humanInviteResult.code}\${BASE}nCredentials: ${humanInviteResult.credentials}`
+                    ? `Invite Code: ${humanInviteResult.code}\nUsername: ${humanInviteResult.username}\nLogin Token: ${humanInviteResult.token}`
+                    : `Invite Code: ${humanInviteResult.code}\nCredentials: ${humanInviteResult.credentials}`
                   copyToClipboard(text)
                 }} className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20">
                   {copiedFeedback || t('modal.copyAll')}
                 </button>
                 <button onClick={() => downloadAsFile(
                   humanInviteResult.username
-                    ? `Invite Code: ${humanInviteResult.code}\${BASE}nUsername: ${humanInviteResult.username}\${BASE}nLogin Token: ${humanInviteResult.token}\${BASE}n`
-                    : `Invite Code: ${humanInviteResult.code}\${BASE}nCredentials: ${humanInviteResult.credentials}\${BASE}n`,
+                    ? `Invite Code: ${humanInviteResult.code}\nUsername: ${humanInviteResult.username}\nLogin Token: ${humanInviteResult.token}\n`
+                    : `Invite Code: ${humanInviteResult.code}\nCredentials: ${humanInviteResult.credentials}\n`,
                   `memtrant-human-invite-${humanInviteResult.code}.txt`
                 )} className="flex-1 py-2.5 rounded-2xl text-sm font-medium bg-white/[0.03] border border-white/[0.08] text-zinc-300 hover:border-white/[0.15] transition-all duration-200">
                   {t('modal.download')}
@@ -1765,6 +1777,89 @@ export default function Home() {
                 </button>
                 <button onClick={() => setShowToken(false)} className="flex-1 py-2.5 rounded-2xl text-sm bg-white/[0.03] border border-white/[0.08] text-zinc-500 hover:text-zinc-200 hover:border-white/[0.15] transition-all duration-200">{t('modal.close')}</button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Agent Detail Modal ── */}
+      <AnimatePresence>
+        {selectedAgent && (
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setSelectedAgent(null)}>
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-lg" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{roleIcons[selectedAgent.role] || '🤖'}</span>
+                  <div>
+                    <h2 className="text-lg font-bold text-zinc-100">{selectedAgent.name}</h2>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-white/[0.08] text-zinc-400">{selectedAgent.role}</span>
+                      <span className="text-sm">{statusIcons[selectedAgent.status] || '⚫'}</span>
+                      <span className="text-xs text-zinc-600">{selectedAgent.status}</span>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedAgent(null)} className="text-zinc-600 hover:text-zinc-200 transition-colors duration-200 text-lg leading-none">✕</button>
+              </div>
+
+              {/* Stats grid */}
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                  <div className="text-xs text-zinc-600 mb-1">📋 {t('modal.agentAssignedTasks')}</div>
+                  <div className="text-xl font-bold text-zinc-100">{selectedAgent._count?.assignedInstructions || 0}</div>
+                </div>
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                  <div className="text-xs text-zinc-600 mb-1">✏️ {t('modal.agentCreatedTasks')}</div>
+                  <div className="text-xl font-bold text-zinc-100">{selectedAgent._count?.createdInstructions || 0}</div>
+                </div>
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                  <div className="text-xs text-zinc-600 mb-1">🕐 {t('modal.agentLastSeen')}</div>
+                  <div className="text-sm font-medium text-zinc-300">{formatTimeAgo(selectedAgent.lastSeen)}</div>
+                </div>
+                <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+                  <div className="text-xs text-zinc-600 mb-1">📅 {t('modal.agentCreated')}</div>
+                  <div className="text-sm font-medium text-zinc-300">{new Date(selectedAgent.createdAt).toLocaleDateString()}</div>
+                </div>
+              </div>
+
+              {/* Agent Token (Brain) */}
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-zinc-300">🧠 {t('modal.agentToken')} <span className="font-normal text-zinc-600">({t('modal.agentTokenDesc').split('.')[0]})</span></h3>
+                  <button onClick={() => copyToClipboard(selectedAgent.token)}
+                    className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors duration-200 px-2 py-1 rounded-lg hover:bg-emerald-500/10">
+                    {copiedFeedback || t('modal.copyAgentToken')}
+                  </button>
+                </div>
+                <div className="bg-black/40 rounded-xl p-4">
+                  <code className="text-xs text-cyan-400 break-all select-all font-mono leading-relaxed">{selectedAgent.token}</code>
+                </div>
+              </div>
+
+              {/* Agent's assigned instructions */}
+              {selectedAgent._count && selectedAgent._count.assignedInstructions > 0 && (
+                <div className="mb-5">
+                  <h3 className="text-sm font-semibold text-zinc-300 mb-3">📋 {t('modal.agentAssignedTasks')}</h3>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {instructions.filter(i => i.assignee?.id === selectedAgent.id).slice(0, 10).map(inst => (
+                      <div key={inst.id} className="bg-white/[0.02] border border-white/[0.04] rounded-xl px-4 py-3 flex items-center justify-between">
+                        <span className="text-sm text-zinc-300 truncate mr-3">{inst.title}</span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`text-xs px-2 py-0.5 rounded-full border ${priorityColors[inst.priority] || priorityColors.normal}`}>{inst.priority}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColors[inst.status] || statusColors.pending}`}>{inst.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Close */}
+              <button onClick={() => setSelectedAgent(null)}
+                className="w-full py-2.5 rounded-2xl text-sm bg-white/[0.03] border border-white/[0.08] text-zinc-500 hover:text-zinc-200 hover:border-white/[0.15] transition-all duration-200">
+                {t('modal.close')}
+              </button>
             </motion.div>
           </motion.div>
         )}

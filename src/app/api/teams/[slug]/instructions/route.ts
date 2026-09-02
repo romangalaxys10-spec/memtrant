@@ -18,6 +18,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     const instructions = await db.instruction.findMany({
       where: { teamId: team.id },
       orderBy: { createdAt: 'desc' },
+      include: {
+        assignee: { select: { id: true, name: true, role: true } },
+      },
     })
 
     return NextResponse.json({ instructions })
@@ -41,29 +44,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     }
 
     const body = await req.json()
-    const { title, content, agentId, creatorId: creatorUsername } = body
+    const { title, content, assigneeId, priority } = body
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content required' }, { status: 400 })
-    }
-
-    // Look up creator by username to get user.id
-    let creatorId: string | undefined
-    if (creatorUsername) {
-      const user = await db.user.findUnique({ where: { username: creatorUsername } })
-      if (!user) {
-        return NextResponse.json({ error: 'Creator user not found' }, { status: 404 })
-      }
-      creatorId = user.id
     }
 
     const instruction = await db.instruction.create({
       data: {
         title,
         content,
-        ...(agentId && { agentId }),
-        ...(creatorId && { creatorId }),
+        priority: priority || 'normal',
+        ...(assigneeId && { assigneeId }),
         teamId: team.id,
+      },
+      include: {
+        assignee: { select: { id: true, name: true, role: true } },
       },
     })
 

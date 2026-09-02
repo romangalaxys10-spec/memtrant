@@ -17,6 +17,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 
     const agent = await db.agent.findFirst({
       where: { id: agentId, teamId: team.id },
+      include: {
+        _count: {
+          select: { assignedInstructions: true, createdInstructions: true },
+        },
+      },
     })
 
     if (!agent) {

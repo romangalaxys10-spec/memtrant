@@ -19,6 +19,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     const agents = await db.agent.findMany({
       where: { teamId: team.id },
       orderBy: { createdAt: 'desc' },
+      include: {
+        _count: {
+          select: { assignedInstructions: true, createdInstructions: true },
+        },
+      },
     })
 
     return NextResponse.json({ agents })
@@ -63,9 +68,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     const agent = await db.agent.create({
       data: {
         name,
-        role: role || 'member',
+        role: role || 'worker',
         token,
         teamId: team.id,
+      },
+      include: {
+        _count: {
+          select: { assignedInstructions: true, createdInstructions: true },
+        },
       },
     })
 
