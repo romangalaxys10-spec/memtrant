@@ -58,4 +58,4 @@ agent-ctx/
 tool-results/
 worklog.md
 .zscripts/
-download/
+download/.mimosa/
