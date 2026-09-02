@@ -570,7 +570,7 @@ export default function Home() {
   const [newInstAssigneeId, setNewInstAssigneeId] = useState('')
   const [inviteAgentRole, setInviteAgentRole] = useState<AgentRole>('worker')
   const [inviteExpiryHours, setInviteExpiryHours] = useState('24')
-  const [inviteResult, setInviteResult] = useState<{ code: string; token: string } | null>(null)
+  const [inviteResult, setInviteResult] = useState<{ code: string; token: string; teamName?: string; slug?: string; role?: string } | null>(null)
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function copyToClipboard(text: string) {
@@ -854,6 +854,39 @@ export default function Home() {
   }, [view, teamTab, selectedTeam?.slug])
 
   // ── Invites ──────────────────────────────────────────────────────────────
+  // Ready-to-paste prompt: the human sends this to their AI agent, which then
+  // joins the team by itself via the invite code.
+  function buildAgentJoinPrompt(inviteCode: string, teamName: string, teamSlug: string, role: string): string {
+    return `You have been invited to join the MemTrant team "${teamName}" as a ${role} agent.
+
+MemTrant is a shared memory + task server for agent teams. Complete these steps:
+
+1. REGISTER YOURSELF (one-time):
+   POST ${API}/api/agents/register
+   Content-Type: application/json
+   Body: {"inviteCode": "${inviteCode}", "name": "<choose a short unique name for yourself>"}
+   The response contains your personal agent token (agt_...) — save it. Do not share it.
+
+2. API USAGE — always send this header on every call:
+   Authorization: Bearer <your agt_ token>
+
+   - Announce status (heartbeat):
+     POST ${API}/api/t/${teamSlug}/agents
+     Body: {"status": "working"}   // idle | working | offline
+
+   - Read a memory file:
+     GET ${API}/api/t/${teamSlug}/notes/<file>.txt
+
+   - Write a memory file (body = raw file content):
+     PUT ${API}/api/t/${teamSlug}/notes/<file>.txt
+
+   - List your instructions (tasks):
+     GET ${API}/api/t/${teamSlug}/instructions
+
+3. Fetch your instructions and start working. Write your progress and results
+   into your memory files so the rest of the team can see them.`
+  }
+
   async function loadInvites(slug: string) {
     try {
       const res = await fetch(`${API}/api/teams/${slug}/invites`, {
@@ -888,8 +921,8 @@ export default function Home() {
           username: creds.username || '',
           token: creds.loginToken || creds.token || '',
         })
-      } else if (type === 'agent') {
-        setInviteResult({ code: data.code, token: data.token || data.agentToken || '' })
+      } else if (type === 'agent' && selectedTeam) {
+        setInviteResult({ code: data.code, token: data.token || data.agentToken || '', teamName: selectedTeam.name, slug: selectedTeam.slug, role: inviteAgentRole })
       }
       setShowNewInviteAgent(false)
       setShowNewInviteHuman(false)
@@ -1849,6 +1882,13 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
                                 {inv.status}
                               </span>
                               <span className="text-xs text-zinc-600">{inv.useCount}/{inv.maxUses || '∞'}</span>
+                              {inv.type === 'agent' && inv.status === 'active' && selectedTeam && (
+                                <button
+                                  onClick={() => copyToClipboard(buildAgentJoinPrompt(inv.code, selectedTeam.name, selectedTeam.slug, inv.role || 'worker'))}
+                                  title="Copy agent join prompt"
+                                  className="text-xs text-sky-400/80 hover:text-sky-300 transition-colors duration-200 px-1.5 py-1 rounded-lg hover:bg-sky-500/10"
+                                >🤖 prompt</button>
+                              )}
                               {inv.type === 'human' && inv.credentials && (
                                 <button onClick={() => {
                                   let creds = inv.credentials
@@ -2139,6 +2179,18 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
                     <div className="bg-black/40 rounded-xl p-4">
                       <div className="text-xs text-zinc-600 mb-1">{t('modal.agentToken')}</div>
                       <code className="text-sm text-cyan-400 break-all select-all">{inviteResult.token}</code>
+                    </div>
+                  )}
+                  {inviteResult.slug && inviteResult.teamName && (
+                    <div className="bg-black/40 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-xs text-zinc-600">🤖 Join prompt — paste this into your agent</div>
+                        <button onClick={() => copyToClipboard(buildAgentJoinPrompt(inviteResult.code, inviteResult.teamName!, inviteResult.slug!, inviteResult.role || 'worker'))}
+                          className="text-xs text-emerald-400 hover:text-emerald-300 px-2 py-0.5 rounded-lg hover:bg-emerald-500/10">
+                          {copiedFeedback || 'Copy'}
+                        </button>
+                      </div>
+                      <pre className="text-[11px] text-zinc-400 whitespace-pre-wrap font-mono max-h-56 overflow-y-auto">{buildAgentJoinPrompt(inviteResult.code, inviteResult.teamName, inviteResult.slug, inviteResult.role || 'worker')}</pre>
                     </div>
                   )}
                   <button onClick={() => { copyToClipboard(inviteResult.code); setInviteResult(null); setShowNewInviteAgent(false) }}
