@@ -15,8 +15,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       where: {
         teamId: auth.team.id,
         OR: [
-          { agentId: null },
-          { agentId: auth.agent.id },
+          { assigneeId: null },
+          { assigneeId: auth.agent.id },
         ],
       },
       orderBy: { createdAt: 'desc' },
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
     }
 
     const body = await req.json()
-    const { title, content, agentId } = body
+    const { title, content, assigneeId } = body
 
     if (!title || !content) {
       return NextResponse.json({ error: 'Title and content required' }, { status: 400 })
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ slu
       data: {
         title,
         content,
-        agentId: agentId || null,
+        assigneeId: assigneeId || null,
         creatorId: auth.agent.id,
         teamId: auth.team.id,
       },
