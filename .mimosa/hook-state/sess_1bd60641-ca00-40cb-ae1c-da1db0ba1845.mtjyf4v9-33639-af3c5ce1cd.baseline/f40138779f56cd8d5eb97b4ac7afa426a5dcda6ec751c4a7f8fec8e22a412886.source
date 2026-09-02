@@ -48,7 +48,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     const ext = path.extname(filePath).toLowerCase()
     const contentType = MIME_TYPES[ext] || 'application/octet-stream'
 
-    return new NextResponse(new Uint8Array(buffer), {
+    return new NextResponse(buffer, {
       headers: {
         'Content-Type': contentType,
         'Content-Length': buffer.length.toString(),

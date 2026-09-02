@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260902T102613166Z-31942-013967d6050f",
+  "runId": "20260902T102613166Z-31942-013967d6050f",
+  "runStatus": "completed",
+  "coverage": {
+    "status": "complete",
+    "reasons": []
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "9e95167c4b3ded52a0f556001e1e77fc646fe278",
+  "diffHash": "667b9ad832b41009406b9d8e0b46fb7134a03b45b1bcae01b2ff9f59f516e4a1",
+  "rulesVersion": "unavailable",
+  "sessionHash": "fb0c9c13c3736e2d520f7d829bf8f98b70f6fd886b4a633b93600fc05c9d8740",
+  "reportRef": ".mimosa/reports/task-review-sess_1bd60641-ca00-40cb-ae1c-da1db0ba1845-20260902T102613166Z-31942-013967d6050f.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [
+    {
+      "file": "src/app/api/t/[slug]/instructions/route.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/app/api/teams/[slug]/instructions/[id]/route.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/lib/i18n.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/app/page.tsx",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/app/api/teams/[slug]/route.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/app/api/teams/[slug]/invites/route.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/app/api/teams/[slug]/instructions/route.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/app/api/teams/[slug]/agents/route.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "src/app/api/teams/[slug]/agents/[agentId]/route.ts",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-09-02T10:26:13.404Z"
+}
