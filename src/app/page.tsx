@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { motion, AnimatePresence, useInView } from 'framer-motion'
 import { Lang, LANGUAGES, isRTL, getTimeAgo, useT } from '@/lib/i18n'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -93,6 +93,68 @@ const modalContent = {
   animate: { opacity: 1, scale: 1, y: 0 },
   exit: { opacity: 0, scale: 0.92, y: 20 },
   transition: { ...spring, stiffness: 350, damping: 28 },
+}
+
+// ── Animated Counter Component ──────────────────────────────────────────
+function AnimatedCounter({ target, duration = 1.5, suffix = '' }: { target: number; duration?: number; suffix?: string }) {
+  const [count, setCount] = useState(0)
+  const ref = useRef<HTMLSpanElement>(null)
+  const inView = useInView(ref, { once: true, margin: '-50px' })
+  useEffect(() => {
+    if (!inView) return
+    let start = 0
+    const step = target / (duration * 60)
+    const timer = setInterval(() => {
+      start += step
+      if (start >= target) { setCount(target); clearInterval(timer) }
+      else setCount(Math.floor(start))
+    }, 1000 / 60)
+    return () => clearInterval(timer)
+  }, [inView, target, duration])
+  return <span ref={ref}>{count}{suffix}</span>
+}
+
+// ── Section Reveal Wrapper ──────────────────────────────────────────
+function SectionReveal({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+  const ref = useRef(null)
+  const inView = useInView(ref, { once: true, margin: '-80px' })
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 40 }}
+      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
+      transition={{ duration: 0.7, ease: easeApple, delay }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+// ── Feature Card with Mouse Spotlight ───────────────────────────────
+function SpotlightCard({ icon, title, desc, delay = 0 }: { icon: string; title: string; desc: string; delay?: number }) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = cardRef.current?.getBoundingClientRect()
+    if (!rect) return
+    cardRef.current?.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`)
+    cardRef.current?.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`)
+  }, [])
+  return (
+    <motion.div
+      ref={cardRef}
+      onMouseMove={handleMouseMove}
+      variants={staggerItemSlow}
+      whileHover={{ y: -6, transition: springGentle }}
+      whileTap={{ scale: 0.98, transition: spring }}
+      className="apple-feature-card apple-glass rounded-2xl p-7 text-center hover:border-white/[0.12] transition-colors duration-300 group cursor-default"
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="text-4xl mb-4 transition-transform duration-500 group-hover:scale-110 drop-shadow-lg">{icon}</div>
+      <div className="text-sm font-semibold text-zinc-100 tracking-[-0.01em] mb-2">{title}</div>
+      <div className="text-xs text-zinc-500 leading-relaxed">{desc}</div>
+    </motion.div>
+  )
 }
 
 // ── Home Component ─────────────────────────────────────────────────────────
@@ -495,158 +557,332 @@ export default function Home() {
 
         {/* ════════════ LANDING ════════════ */}
         {view === 'landing' && (
-          <section className="flex-1 flex flex-col items-center justify-center px-6 py-24 md:py-32 relative overflow-hidden">
-            {/* Animated gradient orbs — Apple-style organic drift */}
-            <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-emerald-500/[0.06] rounded-full blur-[160px]" style={{ animation: 'orb-drift-1 20s ease-in-out infinite' }} />
-            <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-cyan-500/[0.05] rounded-full blur-[140px]" style={{ animation: 'orb-drift-2 25s ease-in-out infinite' }} />
-            {/* Subtle warm accent */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-violet-500/[0.03] rounded-full blur-[180px]" style={{ animation: 'orb-drift-1 30s ease-in-out infinite reverse' }} />
+          <div className="flex-1 relative overflow-hidden">
+            {/* ════════════ HERO SECTION ════════════ */}
+            <section className="flex flex-col items-center justify-center px-6 pt-28 pb-20 md:pt-36 md:pb-28 relative overflow-hidden min-h-[90vh]">
+              {/* Animated gradient orbs — Apple-style organic drift */}
+              <div className="absolute top-1/4 left-1/4 w-[700px] h-[700px] bg-emerald-500/[0.07] rounded-full blur-[180px]" style={{ animation: 'orb-drift-1 20s ease-in-out infinite' }} />
+              <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-cyan-500/[0.06] rounded-full blur-[160px]" style={{ animation: 'orb-drift-2 25s ease-in-out infinite' }} />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-violet-500/[0.04] rounded-full blur-[200px]" style={{ animation: 'orb-drift-1 30s ease-in-out infinite reverse' }} />
 
-            {/* Hero content — staggered reveal */}
-            <motion.div
-              initial="initial" animate="animate"
-              variants={{
-                animate: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
-              }}
-              className="relative z-10 text-center max-w-2xl"
-            >
-              {/* Floating brain emoji */}
-              <motion.div variants={{ initial: { opacity: 0, scale: 0.5, y: 20 }, animate: { opacity: 1, scale: 1, y: 0, transition: { ...springBounce, delay: 0 } } }}
-                className="text-8xl mb-8 apple-float select-none"
-                style={{ filter: 'drop-shadow(0 0 40px rgba(16, 185, 129, 0.2))' }}
-              >
-                🧠
-              </motion.div>
-
-              {/* Title — reveal with slight upward motion */}
-              <motion.h1
-                variants={{ initial: { opacity: 0, y: 30, filter: 'blur(8px)' }, animate: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.8, ease: easeApple } } }}
-                className="text-7xl md:text-8xl font-bold tracking-[-0.04em] bg-gradient-to-b from-emerald-300 via-emerald-400 to-cyan-500 bg-clip-text text-transparent mb-7 leading-[0.95]"
-              >
-                MemTrant
-              </motion.h1>
-
-              {/* Subtitle */}
-              <motion.p
-                variants={staggerItem}
-                className="text-xl md:text-2xl text-zinc-200 font-medium mb-3 tracking-[-0.01em]"
-              >
-                {t('landing.subtitle')}
-              </motion.p>
-
-              {/* Description */}
-              <motion.p
-                variants={staggerItem}
-                className="text-base md:text-lg text-zinc-500 max-w-lg mx-auto mb-14 leading-relaxed"
-              >
-                {t('landing.description')}
-              </motion.p>
-
-              {/* CTA Buttons */}
-              <motion.div variants={staggerItem} className="flex gap-4 justify-center">
-                <motion.button
-                  whileHover={{ scale: 1.03, y: -2 }}
-                  whileTap={{ scale: 0.97 }}
-                  transition={spring}
-                  onClick={() => { setAuthMode('register'); setView('auth'); setTokenMode('auto'); setLoginToken('') }}
-                  className="apple-btn-primary px-8 py-3.5 rounded-2xl font-semibold text-[15px] bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_8px_32px_-8px_rgba(16,185,129,0.3)] hover:shadow-[0_0_0_1px_rgba(16,185,129,0.2),0_16px_48px_-12px_rgba(16,185,129,0.4)]"
-                >
-                  {t('landing.getStarted')}
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.03, y: -2 }}
-                  whileTap={{ scale: 0.97 }}
-                  transition={spring}
-                  onClick={() => { setAuthMode('login'); setView('auth') }}
-                  className="apple-btn-secondary px-8 py-3.5 rounded-2xl font-semibold text-[15px] bg-white/[0.03] border border-white/[0.08] text-zinc-300 hover:text-white"
-                >
-                  {t('landing.signIn')}
-                </motion.button>
-              </motion.div>
-            </motion.div>
-
-            {/* Feature Cards — staggered entrance with spring hover */}
-            <motion.div
-              initial="initial" animate="animate"
-              variants={{ animate: { transition: { staggerChildren: 0.1, delayChildren: 0.5 } } }}
-              className="relative z-10 mt-24 grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-2xl w-full"
-            >
-              {[
-                { icon: '🧠', title: t('landing.featureMemory'), desc: t('landing.featureMemoryDesc') },
-                { icon: '📋', title: t('landing.featureInstructions'), desc: t('landing.featureInstructionsDesc') },
-                { icon: '🔗', title: t('landing.featureInvite'), desc: t('landing.featureInviteDesc') },
-              ].map((f, i) => (
-                <motion.div
-                  key={i}
-                  variants={staggerItemSlow}
-                  whileHover={{ y: -4, transition: springGentle }}
-                  className="apple-glass rounded-2xl p-7 text-center hover:border-white/[0.1] transition-colors duration-300 group"
-                >
-                  <div className="text-3xl mb-3 transition-transform duration-500 group-hover:scale-110">{f.icon}</div>
-                  <div className="text-sm font-semibold text-zinc-200 tracking-[-0.01em]">{f.title}</div>
-                  <div className="text-xs text-zinc-500 mt-2 leading-relaxed">{f.desc}</div>
-                </motion.div>
-              ))}
-            </motion.div>
-
-            {/* ── GitHub Badge ── */}
-            <motion.a
-              href="https://github.com/romangalaxys10-spec/memtrant"
-              target="_blank"
-              rel="noopener noreferrer"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7, duration: 0.6, ease: easeApple }}
-              whileHover={{ y: -2, transition: springGentle }}
-              className="relative z-10 mt-12 w-full max-w-2xl rounded-2xl apple-glass-strong p-5 flex items-center gap-4 group cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/[0.06] flex items-center justify-center flex-shrink-0 group-hover:bg-white/[0.1] transition-colors duration-300">
-                <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-                </svg>
+              {/* Floating particles */}
+              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                {[...Array(8)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="apple-particle"
+                    style={{
+                      left: `${15 + (i * 12) % 80}%`,
+                      top: `${20 + (i * 17) % 60}%`,
+                      width: `${3 + (i % 3)}px`,
+                      height: `${3 + (i % 3)}px`,
+                      background: i % 3 === 0 ? 'rgba(16, 185, 129, 0.35)' : i % 3 === 1 ? 'rgba(6, 182, 212, 0.25)' : 'rgba(139, 92, 246, 0.2)',
+                      animation: `particle-float-${(i % 3) + 1} ${12 + i * 3}s ease-in-out infinite`,
+                      animationDelay: `${i * 0.8}s`,
+                    }}
+                  />
+                ))}
               </div>
-              <span className="text-sm font-semibold text-zinc-200 group-hover:text-white transition-colors duration-300">{t('github.star')}</span>
-              <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-300 ms-auto transition-all duration-300 group-hover:translate-x-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            </motion.a>
 
-            {/* ── Z.AI GLM 5 Turbo Promo ── */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.85, duration: 0.6, ease: easeApple }}
-              whileHover={{ y: -2, transition: springGentle }}
-              className="relative z-10 mt-6 mb-4 w-full max-w-2xl"
-            >
-              <div className="relative rounded-2xl apple-glass p-8 overflow-hidden hover:border-emerald-500/20 transition-all duration-500">
-                {/* Glowing accent — animated */}
-                <div className="absolute -top-16 -right-16 w-32 h-32 bg-emerald-500/10 rounded-full blur-[80px]" style={{ animation: 'orb-drift-2 15s ease-in-out infinite' }} />
-                <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-cyan-500/[0.06] rounded-full blur-[80px]" style={{ animation: 'orb-drift-1 18s ease-in-out infinite' }} />
+              {/* Hero content — staggered reveal */}
+              <motion.div
+                initial="initial" animate="animate"
+                variants={{ animate: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } } }}
+                className="relative z-10 text-center max-w-3xl"
+              >
+                {/* Floating brain emoji — bigger, more glow */}
+                <motion.div
+                  variants={{ initial: { opacity: 0, scale: 0.3, y: 30 }, animate: { opacity: 1, scale: 1, y: 0, transition: { ...springBounce, delay: 0 } } }}
+                  className="text-[100px] md:text-[120px] mb-6 apple-float select-none leading-none"
+                  style={{ filter: 'drop-shadow(0 0 60px rgba(16, 185, 129, 0.25))' }}
+                >
+                  🧠
+                </motion.div>
 
-                <div className="relative z-10">
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium mb-5">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    {t('promo.builtWith')} {t('promo.modelName')}
-                  </div>
+                {/* Title — gradient shimmer */}
+                <motion.h1
+                  variants={{ initial: { opacity: 0, y: 30, filter: 'blur(10px)' }, animate: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.9, ease: easeApple } } }}
+                  className="text-7xl md:text-9xl font-bold tracking-[-0.05em] bg-gradient-to-b from-emerald-300 via-emerald-400 to-cyan-400 bg-clip-text text-transparent mb-6 leading-[0.9] apple-gradient-shimmer"
+                >
+                  MemTrant
+                </motion.h1>
 
-                  <h3 className="text-lg font-semibold text-zinc-100 mb-2">{t('promo.inviteTitle')}</h3>
-                  <p className="text-sm text-zinc-400 mb-6 leading-relaxed">{t('promo.inviteDesc')}</p>
+                {/* Subtitle — stronger presence */}
+                <motion.p
+                  variants={staggerItem}
+                  className="text-2xl md:text-3xl text-zinc-100 font-semibold mb-3 tracking-[-0.02em]"
+                >
+                  {t('landing.subtitle')}
+                </motion.p>
 
-                  <motion.a
-                    href="https://z.ai/subscribe?ic=R0K78RJKNW"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    whileHover={{ scale: 1.03 }}
+                {/* Description */}
+                <motion.p
+                  variants={staggerItem}
+                  className="text-base md:text-lg text-zinc-400 max-w-xl mx-auto mb-10 leading-relaxed"
+                >
+                  {t('landing.description')}
+                </motion.p>
+
+                {/* CTA Buttons — larger, more impactful */}
+                <motion.div variants={staggerItem} className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <motion.button
+                    whileHover={{ scale: 1.04, y: -3 }}
                     whileTap={{ scale: 0.97 }}
                     transition={spring}
-                    className="apple-btn-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl font-semibold text-[14px] bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_8px_24px_-8px_rgba(16,185,129,0.25)]"
+                    onClick={() => { setAuthMode('register'); setView('auth'); setTokenMode('auto'); setLoginToken('') }}
+                    className="apple-btn-primary px-10 py-4 rounded-2xl font-semibold text-base bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_8px_40px_-8px_rgba(16,185,129,0.35)] hover:shadow-[0_0_0_1px_rgba(16,185,129,0.25),0_20px_60px_-12px_rgba(16,185,129,0.5)]"
                   >
-                    {t('promo.joinNow')}
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                  </motion.a>
+                    {t('landing.getStarted')}
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.04, y: -3 }}
+                    whileTap={{ scale: 0.97 }}
+                    transition={spring}
+                    onClick={() => { setAuthMode('login'); setView('auth') }}
+                    className="apple-btn-secondary px-10 py-4 rounded-2xl font-semibold text-base bg-white/[0.03] border border-white/[0.08] text-zinc-300 hover:text-white"
+                  >
+                    {t('landing.signIn')}
+                  </motion.button>
+                </motion.div>
+              </motion.div>
+            </section>
+
+            {/* ════════════ METRICS TICKER ════════════ */}
+            <section className="relative z-10 w-full max-w-4xl mx-auto px-6 -mt-4 mb-16">
+              <div className="apple-glass-strong rounded-3xl p-1">
+                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-white/[0.06]">
+                  {[
+                    { value: 18, suffix: '+', label: t('landing.metricEndpoints'), color: 'text-emerald-400' },
+                    { value: 5, suffix: '', label: t('landing.metricLanguages'), color: 'text-cyan-400' },
+                    { value: 4, suffix: '', label: t('landing.metricTokenTypes'), color: 'text-violet-400' },
+                    { value: 3, suffix: '', label: t('landing.metricRoles'), color: 'text-amber-400' },
+                  ].map((m, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: i * 0.1, duration: 0.6, ease: easeApple }}
+                      className="py-6 px-4 text-center"
+                    >
+                      <div className={`text-3xl md:text-4xl font-bold tracking-[-0.03em] apple-metric-value ${m.color}`}>
+                        <AnimatedCounter target={m.value} suffix={m.suffix} />
+                      </div>
+                      <div className="text-[11px] text-zinc-500 mt-1.5 font-medium uppercase tracking-wider">{m.label}</div>
+                    </motion.div>
+                  ))}
                 </div>
               </div>
-            </motion.div>
-          </section>
+            </section>
+
+            {/* ════════════ FEATURES GRID ════════════ */}
+            <section className="relative z-10 w-full max-w-4xl mx-auto px-6 mb-24">
+              <SectionReveal className="text-center mb-12">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06] text-zinc-400 text-xs font-medium mb-5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Core Features
+                </div>
+                <h2 className="text-3xl md:text-4xl font-bold text-zinc-100 tracking-[-0.03em]">
+                  Everything your agents need
+                </h2>
+              </SectionReveal>
+              <motion.div
+                initial="initial" whileInView="animate" viewport={{ once: true, margin: '-50px' }}
+                variants={{ animate: { transition: { staggerChildren: 0.08 } } }}
+                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"
+              >
+                <SpotlightCard icon="🧠" title={t('landing.featureMemory')} desc={t('landing.featureMemoryDesc')} />
+                <SpotlightCard icon="📋" title={t('landing.featureInstructions')} desc={t('landing.featureInstructionsDesc')} />
+                <SpotlightCard icon="🔗" title={t('landing.featureInvite')} desc={t('landing.featureInviteDesc')} />
+                <SpotlightCard icon="💾" title={t('landing.featureStorage')} desc={t('landing.featureStorageDesc')} />
+                <SpotlightCard icon="🔑" title={t('landing.featureTokens')} desc={t('landing.featureTokensDesc')} />
+                <SpotlightCard icon="👑" title={t('landing.featureRoles')} desc={t('landing.featureRolesDesc')} />
+              </motion.div>
+            </section>
+
+            {/* ════════════ HOW IT WORKS ════════════ */}
+            <section className="relative z-10 w-full max-w-3xl mx-auto px-6 mb-24">
+              <SectionReveal className="text-center mb-16">
+                <h2 className="text-3xl md:text-4xl font-bold text-zinc-100 tracking-[-0.03em] mb-3">
+                  {t('landing.howTitle')}
+                </h2>
+                <div className="w-12 h-1 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full mx-auto" />
+              </SectionReveal>
+
+              <div className="relative">
+                {/* Vertical connector line (desktop) */}
+                <div className="hidden md:block absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-emerald-500/30 via-cyan-500/20 to-transparent" />
+
+                {[
+                  { step: 1, emoji: '🚀', title: t('landing.howStep1Title'), desc: t('landing.howStep1Desc'), bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', ring: 'bg-emerald-500/20', label: 'text-emerald-400' },
+                  { step: 2, emoji: '🤖', title: t('landing.howStep2Title'), desc: t('landing.howStep2Desc'), bg: 'bg-cyan-500/10', border: 'border-cyan-500/20', ring: 'bg-cyan-500/20', label: 'text-cyan-400' },
+                  { step: 3, emoji: '⚡', title: t('landing.howStep3Title'), desc: t('landing.howStep3Desc'), bg: 'bg-violet-500/10', border: 'border-violet-500/20', ring: 'bg-violet-500/20', label: 'text-violet-400' },
+                ].map((s, i) => (
+                  <SectionReveal key={i} delay={i * 0.15} className="relative flex gap-6 md:gap-8 mb-12 last:mb-0">
+                    {/* Step number with pulse ring */}
+                    <div className="relative flex-shrink-0">
+                      <div className={`w-16 h-16 rounded-2xl ${s.bg} ${s.border} border flex items-center justify-center text-2xl relative z-10`}>
+                        {s.emoji}
+                      </div>
+                      <div className={`absolute inset-0 w-16 h-16 rounded-2xl ${s.ring} apple-pulse-ring`} />
+                    </div>
+                    {/* Content */}
+                    <div className="pt-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className={`text-[11px] font-bold uppercase tracking-widest ${s.label}`}>Step {s.step}</span>
+                      </div>
+                      <h3 className="text-lg font-semibold text-zinc-100 tracking-[-0.01em] mb-1.5">{s.title}</h3>
+                      <p className="text-sm text-zinc-500 leading-relaxed max-w-md">{s.desc}</p>
+                    </div>
+                  </SectionReveal>
+                ))}
+              </div>
+            </section>
+
+            {/* ════════════ TECH STACK ════════════ */}
+            <section className="relative z-10 w-full max-w-4xl mx-auto px-6 mb-24">
+              <SectionReveal className="text-center mb-12">
+                <h2 className="text-3xl md:text-4xl font-bold text-zinc-100 tracking-[-0.03em] mb-3">
+                  {t('landing.techTitle')}
+                </h2>
+                <p className="text-sm text-zinc-500">{t('landing.techSubtitle')}</p>
+              </SectionReveal>
+              <motion.div
+                initial="initial" whileInView="animate" viewport={{ once: true, margin: '-50px' }}
+                variants={{ animate: { transition: { staggerChildren: 0.1 } } }}
+                className="grid grid-cols-2 md:grid-cols-4 gap-4"
+              >
+                {[
+                  { name: t('landing.techNextjs'), desc: t('landing.techNextjsDesc'), icon: '▲', color: 'text-white' },
+                  { name: t('landing.techPrisma'), desc: t('landing.techPrismaDesc'), icon: '◆', color: 'text-zinc-100' },
+                  { name: t('landing.techTailwind'), desc: t('landing.techTailwindDesc'), icon: '🎨', color: 'text-cyan-400' },
+                  { name: t('landing.techFramer'), desc: t('landing.techFramerDesc'), icon: '✦', color: 'text-violet-400' },
+                ].map((tech, i) => (
+                  <motion.div
+                    key={i}
+                    variants={staggerItem}
+                    whileHover={{ y: -4, transition: springGentle }}
+                    className="apple-glass rounded-2xl p-6 text-center group hover:border-white/[0.1] transition-colors duration-300"
+                  >
+                    <div className={`text-2xl mb-3 ${tech.color} group-hover:scale-110 transition-transform duration-300`}>{tech.icon}</div>
+                    <div className="text-sm font-bold text-zinc-100 mb-1">{tech.name}</div>
+                    <div className="text-[11px] text-zinc-500 leading-relaxed">{tech.desc}</div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            </section>
+
+            {/* ════════════ SOCIAL PROOF BADGES ════════════ */}
+            <section className="relative z-10 w-full max-w-3xl mx-auto px-6 mb-24">
+              <motion.div
+                initial="initial" whileInView="animate" viewport={{ once: true, margin: '-50px' }}
+                variants={{ animate: { transition: { staggerChildren: 0.1 } } }}
+                className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+              >
+                {[
+                  { icon: '🔓', title: t('landing.openSource'), desc: t('landing.openSourceDesc') },
+                  { icon: '⚡', title: t('landing.selfHost'), desc: t('landing.selfHostDesc') },
+                  { icon: '🌍', title: t('landing.multiLang'), desc: t('landing.multiLangDesc') },
+                ].map((b, i) => (
+                  <motion.div
+                    key={i}
+                    variants={staggerItem}
+                    whileHover={{ y: -3, transition: springGentle }}
+                    className="apple-glass rounded-2xl p-5 text-center hover:border-emerald-500/15 transition-colors duration-300"
+                  >
+                    <div className="text-2xl mb-2">{b.icon}</div>
+                    <div className="text-xs font-bold text-zinc-100 mb-1">{b.title}</div>
+                    <div className="text-[11px] text-zinc-500 leading-relaxed">{b.desc}</div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            </section>
+
+            {/* ════════════ CTA + GITHUB + Z.AI ════════════ */}
+            <section className="relative z-10 w-full max-w-2xl mx-auto px-6 pb-12">
+              {/* GitHub Badge */}
+              <SectionReveal>
+                <motion.a
+                  href="https://github.com/romangalaxys10-spec/memtrant"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  whileHover={{ y: -3, transition: springGentle }}
+                  className="block w-full rounded-2xl apple-glass-strong p-5 flex items-center gap-4 group cursor-pointer mb-5 hover:border-white/[0.1] transition-colors duration-300"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-white/[0.06] flex items-center justify-center flex-shrink-0 group-hover:bg-white/[0.1] transition-colors duration-300">
+                    <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                    </svg>
+                  </div>
+                  <span className="text-sm font-semibold text-zinc-200 group-hover:text-white transition-colors duration-300">{t('github.star')}</span>
+                  <svg className="w-4 h-4 text-zinc-600 group-hover:text-zinc-300 ms-auto transition-all duration-300 group-hover:translate-x-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </motion.a>
+              </SectionReveal>
+
+              {/* Z.AI GLM 5 Turbo Promo */}
+              <SectionReveal delay={0.1}>
+                <motion.div
+                  whileHover={{ y: -2, transition: springGentle }}
+                  className="w-full mb-8"
+                >
+                  <div className="relative rounded-2xl apple-glass p-8 overflow-hidden hover:border-emerald-500/20 transition-all duration-500">
+                    <div className="absolute -top-16 -right-16 w-32 h-32 bg-emerald-500/10 rounded-full blur-[80px]" style={{ animation: 'orb-drift-2 15s ease-in-out infinite' }} />
+                    <div className="absolute -bottom-16 -left-16 w-32 h-32 bg-cyan-500/[0.06] rounded-full blur-[80px]" style={{ animation: 'orb-drift-1 18s ease-in-out infinite' }} />
+
+                    <div className="relative z-10">
+                      <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium mb-5">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        {t('promo.builtWith')} {t('promo.modelName')}
+                      </div>
+                      <h3 className="text-lg font-semibold text-zinc-100 mb-2">{t('promo.inviteTitle')}</h3>
+                      <p className="text-sm text-zinc-400 mb-6 leading-relaxed">{t('promo.inviteDesc')}</p>
+                      <motion.a
+                        href="https://z.ai/subscribe?ic=R0K78RJKNW"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        transition={spring}
+                        className="apple-btn-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-2xl font-semibold text-[14px] bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-[0_0_0_1px_rgba(16,185,129,0.1),0_8px_24px_-8px_rgba(16,185,129,0.25)]"
+                      >
+                        {t('promo.joinNow')}
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                      </motion.a>
+                    </div>
+                  </div>
+                </motion.div>
+              </SectionReveal>
+
+              {/* ── Credits Footer ── */}
+              <SectionReveal delay={0.2}>
+                <footer className="text-center pt-8 pb-6 border-t border-white/[0.04]">
+                  <p className="text-xs text-zinc-600 mb-3">{t('footer.text')}</p>
+                  <div className="flex items-center justify-center gap-3 flex-wrap">
+                    <a href="https://t.me/romangalaxys10" target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[11px] text-zinc-500 hover:text-zinc-200 hover:border-white/[0.12] transition-all duration-300">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0h-.056zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+                      {t('credits.telegram')}
+                    </a>
+                    <a href="https://linkedin.com/in/romangalaxys10" target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[11px] text-zinc-500 hover:text-zinc-200 hover:border-white/[0.12] transition-all duration-300">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                      LinkedIn
+                    </a>
+                    <a href="https://romangalaxys10.dev" target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[11px] text-zinc-500 hover:text-zinc-200 hover:border-white/[0.12] transition-all duration-300">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                      {t('credits.portfolio')}
+                    </a>
+                    <a href="https://romangalaxys10.hashnode.dev" target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[11px] text-zinc-500 hover:text-zinc-200 hover:border-white/[0.12] transition-all duration-300">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                      {t('credits.blog')}
+                    </a>
+                  </div>
+                </footer>
+              </SectionReveal>
+            </section>
+          </div>
         )}
 
         {/* ════════════ AUTH ════════════ */}
@@ -1185,6 +1421,7 @@ export default function Home() {
       </main>
 
       {/* ════════════ FOOTER ════════════ */}
+      {view !== 'landing' && (
       <footer className="mt-auto border-t border-white/[0.04] px-6 py-8">
         <div className="max-w-4xl mx-auto space-y-3">
           <p className="text-center text-[11px] text-zinc-700 tracking-wide uppercase">{t('footer.text')}</p>
@@ -1207,6 +1444,7 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════════
           MODALS

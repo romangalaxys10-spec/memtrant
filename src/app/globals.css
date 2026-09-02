@@ -272,3 +272,106 @@ html {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Gradient text shimmer ──────────────────────────────── */
+@keyframes gradient-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.apple-gradient-shimmer {
+  background-size: 200% 200%;
+  animation: gradient-shimmer 6s ease-in-out infinite;
+}
+
+/* ── Floating particle field ────────────────────────────── */
+@keyframes particle-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+  25% { transform: translate(40px, -60px) scale(1.2); opacity: 0.6; }
+  50% { transform: translate(-20px, -100px) scale(0.8); opacity: 0.4; }
+  75% { transform: translate(60px, -40px) scale(1.1); opacity: 0.5; }
+}
+@keyframes particle-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.2; }
+  33% { transform: translate(-50px, -80px) scale(1.3); opacity: 0.5; }
+  66% { transform: translate(30px, -50px) scale(0.9); opacity: 0.3; }
+}
+@keyframes particle-float-3 {
+  0%, 100% { transform: translate(0, 0) scale(0.8); opacity: 0.25; }
+  50% { transform: translate(-40px, -70px) scale(1.1); opacity: 0.5; }
+}
+
+.apple-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.4);
+  pointer-events: none;
+}
+
+/* ── Step connector line animation ──────────────────────── */
+@keyframes line-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+.apple-step-line {
+  transform-origin: top;
+  animation: line-grow 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* ── Metric counter glow ────────────────────────────────── */
+@keyframes metric-glow {
+  0%, 100% { text-shadow: 0 0 20px rgba(16, 185, 129, 0.1); }
+  50% { text-shadow: 0 0 30px rgba(16, 185, 129, 0.25); }
+}
+
+.apple-metric-value {
+  animation: metric-glow 3s ease-in-out infinite;
+}
+
+/* ── Feature card spotlight ─────────────────────────────── */
+.apple-feature-card {
+  position: relative;
+  overflow: hidden;
+}
+.apple-feature-card::before {
+  content: '';
+  position: absolute;
+  top: var(--mouse-y, 50%);
+  left: var(--mouse-x, 50%);
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.06) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+.apple-feature-card:hover::before {
+  opacity: 1;
+}
+
+/* ── Horizontal scroll ticker ───────────────────────────── */
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.apple-ticker {
+  animation: ticker-scroll 30s linear infinite;
+}
+.apple-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* ── Pulse ring for step numbers ────────────────────────── */
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 0.4; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+
+.apple-pulse-ring {
+  animation: pulse-ring 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}

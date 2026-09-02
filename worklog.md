@@ -147,3 +147,34 @@ Stage Summary:
 - Zero lint errors, zero runtime errors
 - Key Apple design principles applied: spring physics, staggered reveals, frosted glass, organic motion, precise shadows, generous spacing, purposeful animation
 
+---
+Task ID: 1
+Agent: Main Agent
+Task: Enhance home page with Apple-like magic touch UX, more facts/data/features
+
+Work Log:
+- Read current page.tsx (1534 lines) to understand landing section structure (lines 558-712)
+- Read i18n.ts (1251 lines) to understand translation system
+- Read globals.css for existing animation definitions
+- Added 30+ new i18n translation keys across 5 languages (EN, RU, KA, AR, HE) for: 3 new features (Storage, Tokens, Roles), metrics labels, How It Works steps, Tech Stack section, Social Proof badges
+- Added 8 new CSS animations to globals.css: gradient-shimmer, particle-float (3 variants), line-grow, metric-glow, feature card spotlight, ticker-scroll, pulse-ring
+- Created 3 new React components: AnimatedCounter (scroll-triggered number animation), SectionReveal (viewport-based reveal wrapper), SpotlightCard (mouse-tracking spotlight effect on feature cards)
+- Replaced the simple 3-card landing page with a rich 7-section scrollable page:
+  1. **Hero Section**: Bigger brain emoji (120px), shimmer gradient title (9xl), floating particles (8 animated dots), stronger CTA buttons
+  2. **Metrics Ticker**: 4-column animated counter bar (18+ API Endpoints, 5 Languages, 4 Token Types, 3 Agent Roles)
+  3. **Features Grid**: Expanded from 3 to 6 feature cards with mouse-tracking spotlight effect
+  4. **How It Works**: 3-step animated flow with pulse ring effects and vertical connector line
+  5. **Tech Stack**: 4-column grid showcasing Next.js 16, Prisma 7, Tailwind CSS 4, Framer Motion
+  6. **Social Proof**: Open Source, Self-Host, Multi-Language badges
+  7. **Credits Footer**: Telegram, LinkedIn, Portfolio, Blog links with SVG icons
+- Made old footer conditionally hidden on landing view (now landing has its own inline footer)
+- Fixed Tailwind dynamic class issue by using full class names instead of template literals for step colors
+- Browser-verified: all sections render correctly, no console errors, navigation to auth works
+
+Stage Summary:
+- Landing page transformed from a simple centered hero (3 cards) to a rich 7-section scrollable page
+- Added scroll-triggered animations via Framer Motion's useInView
+- Added mouse-tracking spotlight effect on feature cards
+- Added animated particle field in hero background
+- All new content fully i18n'd across 5 languages
+- File changes: page.tsx (+200 lines), globals.css (+100 lines), i18n.ts (+250 lines)
