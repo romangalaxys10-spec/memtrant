@@ -571,6 +571,7 @@ export default function Home() {
   const [inviteAgentRole, setInviteAgentRole] = useState<AgentRole>('worker')
   const [inviteExpiryHours, setInviteExpiryHours] = useState('24')
   const [inviteResult, setInviteResult] = useState<{ code: string; token: string; teamName?: string; slug?: string; role?: string } | null>(null)
+  const [promptModal, setPromptModal] = useState<string | null>(null)
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function copyToClipboard(text: string) {
@@ -1884,8 +1885,12 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
                               <span className="text-xs text-zinc-600">{inv.useCount}/{inv.maxUses || '∞'}</span>
                               {inv.type === 'agent' && inv.status === 'active' && selectedTeam && (
                                 <button
-                                  onClick={() => copyToClipboard(buildAgentJoinPrompt(inv.code, selectedTeam.name, selectedTeam.slug, inv.role || 'worker'))}
-                                  title="Copy agent join prompt"
+                                  onClick={() => {
+                                    const prompt = buildAgentJoinPrompt(inv.code, selectedTeam.name, selectedTeam.slug, inv.role || 'worker')
+                                    setPromptModal(prompt)
+                                    copyToClipboard(prompt)
+                                  }}
+                                  title="View / copy agent join prompt"
                                   className="text-xs text-sky-400/80 hover:text-sky-300 transition-colors duration-200 px-1.5 py-1 rounded-lg hover:bg-sky-500/10"
                                 >🤖 prompt</button>
                               )}
@@ -2156,6 +2161,33 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
                     {t('modal.create')}
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Agent Join Prompt Modal ── */}
+      <AnimatePresence>
+        {promptModal && (
+          <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setPromptModal(null)}>
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-zinc-100">🤖 Agent Join Prompt</h2>
+                <button onClick={() => setPromptModal(null)} className="text-zinc-600 hover:text-zinc-200 transition-colors duration-200 text-lg leading-none">✕</button>
+              </div>
+              <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 mb-4">
+                <span className="text-emerald-400">✅</span>
+                <span className="text-sm text-emerald-300 font-medium">Copied! Now paste it to your agent.</span>
+              </div>
+              <pre className="bg-black/40 rounded-xl p-4 text-[11px] text-zinc-300 whitespace-pre-wrap font-mono max-h-80 overflow-y-auto mb-4">{promptModal}</pre>
+              <div className="flex gap-2">
+                <button onClick={() => copyToClipboard(promptModal)} className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20">
+                  {copiedFeedback || 'Copy again'}
+                </button>
+                <button onClick={() => setPromptModal(null)} className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-white/[0.04] border border-white/[0.08] text-zinc-300 hover:text-zinc-100">
+                  Close
+                </button>
               </div>
             </motion.div>
           </motion.div>
