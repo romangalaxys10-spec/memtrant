@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { execFile } from 'child_process'
+import { gzipSync, gunzipSync } from 'zlib'
 import { waitUntil } from '@vercel/functions'
 
 // GitHub-as-database: persists the SQLite file and the memory-file uploads to
@@ -21,10 +21,10 @@ const BRANCH_RE = /^[A-Za-z0-9._\/-]{1,120}$/
 const ENABLED = !!(REPO && TOKEN && REPO_RE.test(REPO) && BRANCH_RE.test(BRANCH))
 export const DB_LOCAL_PATH = path.join(os.tmpdir(), 'memtrant.db')
 export const FILES_DIR = path.join(os.tmpdir(), 'memtrant-data')
-const FILES_TAR = path.join(os.tmpdir(), 'memtrant-files.tar.gz')
+const FILES_ARCHIVE = path.join(os.tmpdir(), 'memtrant-files.json.gz')
 
 const DB_REPO_PATH = 'data/custom.db'
-const FILES_REPO_PATH = 'data/files.tar.gz'
+const FILES_REPO_PATH = 'data/files.json.gz'
 
 interface Pair {
   localPath: string
@@ -172,49 +172,66 @@ function schedule(name: 'db' | 'files', delayMs = 1500, before?: () => Promise<v
         // network-level failure: flushPair only classifies HTTP errors, so
         // retry here with backoff (cap at 3 attempts)
         if (++pair.attempts <= 3) schedule(name, 5000 * pair.attempts, before)
-        else console.error('ghdb flush task failed permanently:', (e as Error).message)
+        else console.error('ghdb flush task failed permanently:', errMsg(e))
       }
     })()
   )
 }
 
-function listTarEntries(tarPath: string): Promise<string[] | null> {
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
+// Archive format: gzip of JSON [{ path, content(base64) }]. Own format means
+// we control extraction safety — no tar/symlink/path-traversal surprises.
+function walkFiles(dir: string, base = ''): string[] {
+  const out: string[] = []
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const rel = base ? `${base}/${entry.name}` : entry.name
+    if (entry.isDirectory()) out.push(...walkFiles(path.join(dir, entry.name), rel))
+    else if (entry.isFile()) out.push(rel)
+  }
+  return out
+}
+
+function createFilesArchive(): Promise<void> {
   return new Promise((resolve) => {
-    execFile('tar', ['-tzf', tarPath], (err, stdout) => {
-      resolve(err ? null : stdout.split('\n').filter(Boolean))
-    })
+    try {
+      fs.mkdirSync(FILES_DIR, { recursive: true })
+      const entries = walkFiles(FILES_DIR).map((rel) => ({
+        path: rel,
+        content: fs.readFileSync(path.join(FILES_DIR, rel)).toString('base64'),
+      }))
+      fs.writeFileSync(FILES_ARCHIVE, gzipSync(Buffer.from(JSON.stringify(entries))))
+    } catch (e) {
+      console.error('ghdb archive create failed:', errMsg(e))
+    }
+    resolve()
   })
 }
 
-function extractFilesTar() {
-  fs.mkdirSync(FILES_DIR, { recursive: true })
-  return new Promise<void>((resolve) => {
-    listTarEntries(FILES_TAR).then((entries) => {
-      if (entries === null) return resolve()
-      // Refuse anything that could escape FILES_DIR: absolute paths, '..' segments,
-      // or link entries (shown as 'link -> target' in the listing)
-      const malicious = entries.some(
-        (e) => e.startsWith('/') || e.split('/').includes('..') || e.includes('->')
+function extractFilesArchive(): Promise<void> {
+  return new Promise((resolve) => {
+    try {
+      fs.mkdirSync(FILES_DIR, { recursive: true })
+      const root = path.resolve(FILES_DIR)
+      const entries: { path: string; content: string }[] = JSON.parse(
+        gunzipSync(fs.readFileSync(FILES_ARCHIVE)).toString()
       )
-      if (malicious) {
-        console.error('ghdb: refusing unsafe archive entries')
-        return resolve()
+      for (const e of entries) {
+        // Defense in depth: refuse absolute paths and traversal even though
+        // we produce the archives ourselves; verify the resolved target stays
+        // inside FILES_DIR.
+        if (typeof e.path !== 'string' || e.path.startsWith('/') || e.path.split('/').includes('..')) continue
+        const target = path.resolve(root, e.path)
+        if (target !== root && !target.startsWith(root + path.sep)) continue
+        fs.mkdirSync(path.dirname(target), { recursive: true })
+        fs.writeFileSync(target, Buffer.from(e.content, 'base64'))
       }
-      execFile('tar', ['-xzf', FILES_TAR, '-C', FILES_DIR], (err) => {
-        if (err) console.error('ghdb tar extract failed:', err.message)
-        resolve()
-      })
-    })
-  })
-}
-
-function createFilesTar(): Promise<void> {
-  return new Promise((resolve) => {
-    fs.mkdirSync(FILES_DIR, { recursive: true })
-    execFile('tar', ['-czf', FILES_TAR, '-C', FILES_DIR, '.'], (err) => {
-      if (err) console.error('ghdb tar create failed:', err.message)
-      resolve()
-    })
+    } catch (e) {
+      console.error('ghdb archive extract failed:', errMsg(e))
+    }
+    resolve()
   })
 }
 
@@ -230,12 +247,12 @@ export async function initSync(): Promise<void> {
   })
   process.env.DATABASE_URL = `file:${DB_LOCAL_PATH}`
 
-  pairs.files = newPair(FILES_TAR, FILES_REPO_PATH)
+  pairs.files = newPair(FILES_ARCHIVE, FILES_REPO_PATH)
   try {
     await hydratePair(pairs.files)
-    await extractFilesTar()
+    await extractFilesArchive()
   } catch (e) {
-    console.error('ghdb files hydrate skipped:', (e as Error).message)
+    console.error('ghdb files hydrate skipped:', errMsg(e))
     fs.mkdirSync(FILES_DIR, { recursive: true })
   }
 }
@@ -244,10 +261,10 @@ export function scheduleDbFlush() {
   schedule('db')
 }
 
-// The files "live data" is a directory, not a single file: rebuild the tarball
+// The files "live data" is a directory, not a single file: rebuild the archive
 // right before flushing it.
 export function scheduleFilesFlush() {
-  schedule('files', 3000, createFilesTar)
+  schedule('files', 3000, createFilesArchive)
 }
 
 // Best-effort flush if the instance is being recycled
