@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import path from 'path'
+import { scheduleFilesFlush } from './ghdb'
 
 // Vercel's filesystem is read-only except /tmp; locally fall back to ./data
 const BASE_PATH = process.env.STORAGE_PATH || (process.env.VERCEL ? '/tmp/memtrant-data' : './data/memtrant')
@@ -57,12 +58,14 @@ export async function writeFileContent(slug: string, filePath: string, content: 
   const target = getFilePath(slug, filePath)
   await fs.mkdir(path.dirname(target), { recursive: true })
   await fs.writeFile(target, content, 'utf-8')
+  scheduleFilesFlush()
 }
 
 export async function writeFileBinary(slug: string, filePath: string, buffer: Buffer): Promise<void> {
   const target = getFilePath(slug, filePath)
   await fs.mkdir(path.dirname(target), { recursive: true })
   await fs.writeFile(target, buffer)
+  scheduleFilesFlush()
 }
 
 export async function readFileBinary(slug: string, filePath: string): Promise<Buffer | null> {
@@ -76,6 +79,7 @@ export async function readFileBinary(slug: string, filePath: string): Promise<Bu
 export async function deleteFileOrDir(slug: string, filePath: string): Promise<boolean> {
   try {
     await fs.rm(getFilePath(slug, filePath), { recursive: true, force: true })
+    scheduleFilesFlush()
     return true
   } catch {
     return false
@@ -102,4 +106,5 @@ export async function getTeamSize(slug: string): Promise<number> {
 
 export async function deleteTeamDir(slug: string): Promise<void> {
   await fs.rm(getTeamPath(slug), { recursive: true, force: true })
+  scheduleFilesFlush()
 }

@@ -21,7 +21,7 @@ export async function listTeamFiles(slug: string, dirPath = ''): Promise<{ name:
   const target = dirPath ? getFilePath(slug, dirPath) : getTeamPath(slug)
   try {
     const entries = await fs.readdir(target, { withFileTypes: true })
-    const results = []
+    const results: { name: string; type: 'file' | 'directory'; size?: number; modified?: string }[] = []
     for (const entry of entries) {
       const fullPath = path.join(target, entry.name)
       if (entry.isDirectory()) {
