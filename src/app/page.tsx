@@ -541,6 +541,22 @@ export default function Home() {
     finally { setTeamsLoading(false) }
   }
 
+  // Near-real-time: re-poll teams while the dashboard is open and on focus,
+  // so changes pushed by agents elsewhere show up without a manual reload.
+  useEffect(() => {
+    if (view !== 'dashboard' || !currentLoginToken) return
+    const tick = () => {
+      if (document.visibilityState === 'visible') loadTeams()
+    }
+    const id = setInterval(tick, 10000)
+    window.addEventListener('focus', tick)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', tick)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, currentLoginToken])
+
   async function handleCreateTeam() {
     setTeamError('')
     try {

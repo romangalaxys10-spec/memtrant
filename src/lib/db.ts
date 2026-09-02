@@ -28,11 +28,12 @@ function lazyModel(model: string): AnyRecord {
   return new Proxy({} as AnyRecord, {
     get(_t, method: string) {
       return async (...callArgs: unknown[]) => {
-        // Reads must not be served from a stale copy: another serverless
-        // instance may have committed newer data since we hydrated.
-        if (method.startsWith('find') || method === 'count' || method === 'aggregate' || method === 'groupBy') {
-          await refreshDbIfChanged()
-        }
+        // Refresh from GitHub before anything runs: reads must not serve a
+        // stale copy, and writes must apply on top of the latest version so
+        // this instance's commit never erases rows written elsewhere.
+        // (Note: refresh swaps the file on disk before the client connects;
+        // two instances writing in the exact same window can still collide.)
+        await refreshDbIfChanged()
         const client = await getClient()
         const result = await (client as AnyRecord)[model][method](...callArgs)
         scheduleDbFlush()
