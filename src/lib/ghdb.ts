@@ -141,36 +141,41 @@ function schedule(name: 'db' | 'files', delayMs = 1500, before?: () => Promise<v
   const pair = pairs[name]
   if (!pair) return
   if (pair.timer) clearTimeout(pair.timer)
+  // Debounce marker: the newest schedule() owns the flush; older waiters see
+  // the timer set and bail.
   pair.timer = setTimeout(() => {
     pair.timer = null
-    // waitUntil keeps the serverless instance alive for the flush — plain
-    // setTimeout callbacks never run after the response is sent on Vercel.
-    waitUntil(
-      (async () => {
-        try {
-          if (before) await before()
-          if (pair.inFlight) {
-            // a write happened mid-flight — run another pass when this one lands
-            pair.pending = true
-            return
-          }
-          pair.inFlight = flushPair(pair).finally(() => {
-            pair.inFlight = null
-            if (pair.pending) {
-              pair.pending = false
-              schedule(name, 0, before)
-            }
-          })
-          await pair.inFlight
-        } catch (e) {
-          // network-level failure: flushPair only classifies HTTP errors, so
-          // retry here with backoff (cap at 3 attempts)
-          if (++pair.attempts <= 3) schedule(name, 5000 * pair.attempts, before)
-          else console.error('ghdb flush task failed permanently:', (e as Error).message)
-        }
-      })()
-    )
   }, delayMs)
+  // waitUntil must be called synchronously during the request to keep the
+  // serverless instance alive — callbacks queued via setTimeout never run
+  // after the response is sent on Vercel.
+  waitUntil(
+    (async () => {
+      await new Promise((r) => setTimeout(r, delayMs))
+      if (pair.timer) return // superseded by a newer schedule()
+      try {
+        if (before) await before()
+        if (pair.inFlight) {
+          // a write happened mid-flight — run another pass when this one lands
+          pair.pending = true
+          return
+        }
+        pair.inFlight = flushPair(pair).finally(() => {
+          pair.inFlight = null
+          if (pair.pending) {
+            pair.pending = false
+            schedule(name, 0, before)
+          }
+        })
+        await pair.inFlight
+      } catch (e) {
+        // network-level failure: flushPair only classifies HTTP errors, so
+        // retry here with backoff (cap at 3 attempts)
+        if (++pair.attempts <= 3) schedule(name, 5000 * pair.attempts, before)
+        else console.error('ghdb flush task failed permanently:', (e as Error).message)
+      }
+    })()
+  )
 }
 
 function listTarEntries(tarPath: string): Promise<string[] | null> {
