@@ -5,7 +5,7 @@
 const API_BASE = 'https://api.github.com'
 const REPO_SLUG_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,80}\/[A-Za-z0-9._-]{1,100}$/
 const BRANCH_RE = /^[A-Za-z0-9._/-]{1,120}$/
-const PATH_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,200}$/
+const PATH_RE = /^(?:[A-Za-z0-9][A-Za-z0-9._/-]{0,200})?$/ // empty = repo root
 
 export interface GhCtx {
   repo: string // owner/name
