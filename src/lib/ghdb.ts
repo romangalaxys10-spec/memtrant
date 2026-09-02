@@ -35,10 +35,11 @@ interface Pair {
   pending: boolean
   attempts: number
   lastSynced: string | null // "size:mtimeMs" of the file at last successful sync
+  etag: string | null // GitHub ETag of the last hydrated version
 }
 
 function newPair(localPath: string, repoPath: string): Pair {
-  return { localPath, repoPath, sha: null, timer: null, inFlight: null, pending: false, attempts: 0, lastSynced: null }
+  return { localPath, repoPath, sha: null, timer: null, inFlight: null, pending: false, attempts: 0, lastSynced: null, etag: null }
 }
 
 const pairs: Record<string, Pair> = {}
@@ -52,7 +53,7 @@ function fileSignature(p: string): string | null {
   }
 }
 
-function ghApi(pair: Pair, init?: RequestInit): Promise<{ status: number; body: any }> {
+function ghApi(pair: Pair, init?: RequestInit): Promise<{ status: number; body: any; etag: string | null }> {
   const url = new URL(`${API_BASE}/repos/${REPO}/contents/${pair.repoPath}`)
   url.searchParams.set('ref', BRANCH)
   return fetch(url, {
@@ -64,7 +65,7 @@ function ghApi(pair: Pair, init?: RequestInit): Promise<{ status: number; body: 
       'User-Agent': 'memtrant-ghdb',
       ...(init?.headers || {}),
     },
-  }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null) }))
+  }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => null), etag: r.headers.get('etag') }))
 }
 
 function writeLocal(pair: Pair, base64: string) {
@@ -75,8 +76,9 @@ function writeLocal(pair: Pair, base64: string) {
 async function hydratePair(pair: Pair, bootstrap?: () => void): Promise<void> {
   const res = await ghApi(pair)
   if (res.status === 200 && res.body?.content) {
-    pair.sha = res.body.sha
     writeLocal(pair, res.body.content)
+    pair.sha = res.body.sha
+    pair.etag = res.etag
     pair.lastSynced = fileSignature(pair.localPath)
     return
   }
@@ -87,6 +89,27 @@ async function hydratePair(pair: Pair, bootstrap?: () => void): Promise<void> {
     return
   }
   throw new Error(`ghdb hydrate failed: ${res.status} ${JSON.stringify(res.body).slice(0, 200)}`)
+}
+
+// Other serverless instances may have committed newer data since this one
+// hydrated. Cheap conditional check (ETag → 304 when unchanged); pull the
+// fresh file only when someone else changed it. Called before reads.
+export async function refreshDbIfChanged(): Promise<void> {
+  if (!ENABLED) return
+  const pair = pairs.db
+  if (!pair || pair.inFlight) return
+  try {
+    const res = await ghApi(pair, pair.etag ? { headers: { 'If-None-Match': pair.etag } } : undefined)
+    if (res.status === 200 && res.body?.content) {
+      writeLocal(pair, res.body.content)
+      pair.sha = res.body.sha
+      pair.etag = res.etag
+      pair.lastSynced = fileSignature(pair.localPath)
+    }
+    // 304 → our copy is current, nothing to do
+  } catch (e) {
+    console.error('ghdb refresh failed:', errMsg(e))
+  }
 }
 
 async function putContents(pair: Pair, content: string, label: string): Promise<{ status: number; body: any }> {

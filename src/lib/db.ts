@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import { initSync, scheduleDbFlush } from './ghdb'
+import { initSync, scheduleDbFlush, refreshDbIfChanged } from './ghdb'
 
 // The real client is created only after the GitHub-backed store has been
 // hydrated (initSync sets DATABASE_URL to the downloaded SQLite file).
@@ -28,6 +28,11 @@ function lazyModel(model: string): AnyRecord {
   return new Proxy({} as AnyRecord, {
     get(_t, method: string) {
       return async (...callArgs: unknown[]) => {
+        // Reads must not be served from a stale copy: another serverless
+        // instance may have committed newer data since we hydrated.
+        if (method.startsWith('find') || method === 'count' || method === 'aggregate' || method === 'groupBy') {
+          await refreshDbIfChanged()
+        }
         const client = await getClient()
         const result = await (client as AnyRecord)[model][method](...callArgs)
         scheduleDbFlush()

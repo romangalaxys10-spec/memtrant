@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateAgent } from '@/lib/auth'
 import { readFileBinary } from '@/lib/storage'
+import { storageCtxForTeam } from '@/lib/user-storage'
 import path from 'path'
 
 const MIME_TYPES: Record<string, string> = {
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     }
 
     const filePath = pathSegments.join('/')
-    const buffer = await readFileBinary(slug, filePath)
+    const buffer = await readFileBinary(slug, filePath, await storageCtxForTeam(slug))
 
     if (buffer === null) {
       return NextResponse.json({ error: 'File not found' }, { status: 404 })
