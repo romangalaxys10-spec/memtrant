@@ -827,7 +827,7 @@ export default function Home() {
     setPreviewContent('')
     setPreviewName('')
     try {
-      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files/${encodeURIComponent(path)}`, { headers: { Authorization: `Bearer ${currentLoginToken}` } })
+      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files?path=${encodeURIComponent(path)}`, { headers: { Authorization: `Bearer ${currentLoginToken}` } })
       const data = await res.json()
       setFiles(Array.isArray(data) ? data : data.files || [])
     } catch { setFiles([]) }
@@ -837,11 +837,21 @@ export default function Home() {
     const fullPath = memoryPath ? `${memoryPath}/${fileName}` : fileName
     setPreviewName(fullPath)
     try {
-      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files/${encodeURIComponent(fullPath)}`, { headers: { Authorization: `Bearer ${currentLoginToken}` } })
+      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files/content?path=${encodeURIComponent(fullPath)}`, { headers: { Authorization: `Bearer ${currentLoginToken}` } })
+      if (!res.ok) { setPreviewContent(`Failed to load (${res.status})`); return }
       const text = await res.text()
       setPreviewContent(typeof text === 'string' ? text : JSON.stringify(text, null, 2))
     } catch { setPreviewContent(t('modal.fileLoadError')) }
   }
+
+  // Auto-load the file listing when the Memory tab opens (and re-sync when
+  // returning to root), so it never shows a stale/empty view.
+  useEffect(() => {
+    if (view === 'team' && teamTab === 'memory' && selectedTeam) {
+      browsePath(memoryPath)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, teamTab, selectedTeam?.slug])
 
   // ── Invites ──────────────────────────────────────────────────────────────
   async function loadInvites(slug: string) {
