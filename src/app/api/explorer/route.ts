@@ -7,6 +7,24 @@ import { storageCtxForTeam } from '@/lib/user-storage'
 // Data explorer: everything the logged-in user owns, readable from wherever
 // it lives (their paired GitHub repo, or the global archive).
 
+// Flatten up to 3 levels of directories into file entries with full paths.
+async function listFilesFlat(slug: string, ctx: Awaited<ReturnType<typeof storageCtxForTeam>>) {
+  const out: { name: string; type: 'file' | 'directory'; size?: number }[] = []
+  async function walk(dir: string, depth: number) {
+    const entries = await listTeamFiles(slug, dir, ctx)
+    for (const e of entries) {
+      const full = dir ? `${dir}/${e.name}` : e.name
+      if (e.type === 'directory') {
+        if (depth < 3) await walk(full, depth + 1)
+      } else {
+        out.push({ ...e, name: full })
+      }
+    }
+  }
+  await walk('', 0)
+  return out
+}
+
 // GET → { teams: [{ slug, name, createdAt, files: [...] }] }
 export async function GET(req: NextRequest) {
   try {
@@ -21,7 +39,7 @@ export async function GET(req: NextRequest) {
     const result = await Promise.all(
       teams.map(async (team) => {
         const ctx = await storageCtxForTeam(team.slug)
-        const files = await listTeamFiles(team.slug, '', ctx)
+        const files = await listFilesFlat(team.slug, ctx)
         return {
           slug: team.slug,
           name: team.name,
