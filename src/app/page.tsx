@@ -281,6 +281,122 @@ function GithubPairCard({ username, loginToken }: { username: string; loginToken
   )
 }
 
+// ── Data Explorer Card ──────────────────────────────────────────────────────
+interface ExplorerFile { name: string; type: 'file' | 'directory'; size?: number }
+interface ExplorerTeam { slug: string; name: string; source: string; files: ExplorerFile[] }
+
+function DataExplorerCard({ loginToken }: { loginToken: string }) {
+  const [teams, setTeams] = useState<ExplorerTeam[]>([])
+  const [openSlug, setOpenSlug] = useState<string | null>(null)
+  const [fileContent, setFileContent] = useState<{ path: string; content: string } | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  async function load() {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/explorer', { headers: { Authorization: `Bearer ${loginToken}` } })
+      if (res.ok) {
+        const data = await res.json()
+        setTeams(data.teams || [])
+        setLoaded(true)
+      }
+    } catch {}
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    if (loginToken) load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loginToken])
+
+  async function openFile(slug: string, path: string) {
+    setFileContent({ path, content: 'Loading…' })
+    try {
+      const res = await fetch('/api/explorer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${loginToken}` },
+        body: JSON.stringify({ slug, path }),
+      })
+      const data = await res.json()
+      setFileContent(res.ok ? { path, content: data.content } : { path, content: data.error || 'Failed to load' })
+    } catch {
+      setFileContent({ path, content: 'Network error' })
+    }
+  }
+
+  return (
+    <div className="apple-glass rounded-2xl p-5 mb-8 border border-white/[0.08]">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">🗂</span>
+          <div>
+            <span className="text-sm font-semibold text-zinc-100">Data Explorer</span>
+            <p className="text-xs text-zinc-500 mt-0.5">Browse the memories stored per team — straight from the source of truth</p>
+          </div>
+        </div>
+        <button onClick={load} disabled={loading} className="text-xs px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/[0.08] text-zinc-400 hover:text-zinc-200 disabled:opacity-40">
+          {loading ? 'Refreshing…' : '↻ Refresh'}
+        </button>
+      </div>
+
+      {loaded && teams.length === 0 && (
+        <p className="text-xs text-zinc-600 mt-4">No teams yet — create one to start storing memories.</p>
+      )}
+
+      <div className="mt-4 space-y-2">
+        {teams.map((team) => (
+          <div key={team.slug} className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden">
+            <button
+              onClick={() => { setOpenSlug(openSlug === team.slug ? null : team.slug); setFileContent(null) }}
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/[0.03] transition-colors"
+            >
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-zinc-200">{team.name}</span>
+                <span className="text-[10px] text-zinc-600 font-mono ml-2">{team.slug}</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${team.source === 'paired-repo' ? 'text-emerald-400 border-emerald-500/20' : 'text-zinc-500 border-white/[0.08]'}`}>
+                  {team.source === 'paired-repo' ? '🔗 paired repo' : '📦 archive'}
+                </span>
+                <span className="text-xs text-zinc-500">{team.files.filter((f) => f.type === 'file').length} files</span>
+                <span className="text-zinc-600 text-xs">{openSlug === team.slug ? '▾' : '▸'}</span>
+              </div>
+            </button>
+            {openSlug === team.slug && (
+              <div className="border-t border-white/[0.06] px-4 py-3">
+                {team.files.length === 0 && <p className="text-xs text-zinc-600">No files yet.</p>}
+                <ul className="space-y-1">
+                  {team.files.map((f) => (
+                    <li key={f.name}>
+                      {f.type === 'file' ? (
+                        <button
+                          onClick={() => openFile(team.slug, f.name)}
+                          className={`text-xs font-mono hover:text-emerald-400 transition-colors ${fileContent?.path === f.name ? 'text-emerald-400' : 'text-zinc-400'}`}
+                        >
+                          📄 {f.name}{f.size !== undefined && <span className="text-zinc-600 ml-2">{f.size} B</span>}
+                        </button>
+                      ) : (
+                        <span className="text-xs font-mono text-zinc-500">📁 {f.name}/</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {fileContent && (
+                  <div className="mt-3 rounded-lg bg-black/40 border border-white/[0.06] p-3 overflow-x-auto max-h-64 overflow-y-auto">
+                    <div className="text-[10px] text-zinc-600 font-mono mb-1">{fileContent.path}</div>
+                    <pre className="text-xs text-zinc-300 whitespace-pre-wrap font-mono">{fileContent.content}</pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Home Component ─────────────────────────────────────────────────────────
 export default function Home() {
   // ── i18n State ─────────────────────────────────────────────────────────
@@ -1212,6 +1328,8 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
             </header>
 
             <GithubPairCard username={username} loginToken={currentLoginToken} />
+
+            <DataExplorerCard loginToken={currentLoginToken} />
 
             <div className="flex items-center justify-between mb-8">
               <motion.h2

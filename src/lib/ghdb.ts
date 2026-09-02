@@ -94,10 +94,8 @@ async function hydratePair(pair: Pair, bootstrap?: () => void): Promise<void> {
 // Other serverless instances may have committed newer data since this one
 // hydrated. Cheap conditional check (ETag → 304 when unchanged); pull the
 // fresh file only when someone else changed it. Called before reads.
-export async function refreshDbIfChanged(): Promise<void> {
-  if (!ENABLED) return
-  const pair = pairs.db
-  if (!pair || pair.inFlight) return
+// Returns true when a newer version was pulled.
+async function refreshPairIfChanged(pair: Pair): Promise<boolean> {
   try {
     const res = await ghApi(pair, pair.etag ? { headers: { 'If-None-Match': pair.etag } } : undefined)
     if (res.status === 200 && res.body?.content) {
@@ -105,10 +103,30 @@ export async function refreshDbIfChanged(): Promise<void> {
       pair.sha = res.body.sha
       pair.etag = res.etag
       pair.lastSynced = fileSignature(pair.localPath)
+      return true
     }
     // 304 → our copy is current, nothing to do
+    return false
   } catch (e) {
     console.error('ghdb refresh failed:', errMsg(e))
+    return false
+  }
+}
+
+export async function refreshDbIfChanged(): Promise<void> {
+  if (!ENABLED) return
+  const pair = pairs.db
+  if (!pair || pair.inFlight) return
+  await refreshPairIfChanged(pair)
+}
+
+// Same staleness guard for the memory-files archive; re-extracts when newer.
+export async function refreshFilesIfChanged(): Promise<void> {
+  if (!ENABLED) return
+  const pair = pairs.files
+  if (!pair || pair.inFlight) return
+  if (await refreshPairIfChanged(pair)) {
+    await extractFilesArchive()
   }
 }
 

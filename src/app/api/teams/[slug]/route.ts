@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { authenticateAny } from '@/lib/auth'
 import { listTeamFiles, getTeamSize, deleteTeamDir } from '@/lib/storage'
+import { storageCtxForTeam } from '@/lib/user-storage'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
@@ -28,7 +29,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
     }
 
-    const files = await listTeamFiles(slug)
+    const sctx = await storageCtxForTeam(slug)
+    const files = await listTeamFiles(slug, '', sctx)
     const storageBytes = await getTeamSize(slug)
 
     return NextResponse.json({ team, files, storageBytes })

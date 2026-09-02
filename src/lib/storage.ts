@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs'
 import path from 'path'
-import { scheduleFilesFlush } from './ghdb'
-import { ghPutFile, ghGetFile, GhCtx } from './github-store'
+import { scheduleFilesFlush, refreshFilesIfChanged } from './ghdb'
+import { ghPutFile, ghGetFile, ghListTree, GhCtx } from './github-store'
 
 // Vercel's filesystem is read-only except /tmp; locally fall back to ./data
 const BASE_PATH = process.env.STORAGE_PATH || (process.env.VERCEL ? '/tmp/memtrant-data' : './data/memtrant')
@@ -26,7 +26,32 @@ export async function ensureTeamDir(slug: string): Promise<void> {
   await fs.mkdir(getTeamPath(slug), { recursive: true })
 }
 
-export async function listTeamFiles(slug: string, dirPath = ''): Promise<{ name: string; type: 'file' | 'directory'; size?: number; modified?: string }[]> {
+export async function listTeamFiles(slug: string, dirPath = '', ctx?: GhCtx | null): Promise<{ name: string; type: 'file' | 'directory'; size?: number; modified?: string }[]> {
+  // Paired users: the truth lives in their own GitHub repo — list from there.
+  if (ctx) {
+    try {
+      const tree = await ghListTree(ctx)
+      if (tree) {
+        const base = `${ctx.prefix || 'memtrant'}/${slug}${dirPath ? `/${dirPath.split('/').filter(Boolean).join('/')}` : ''}`
+        const prefix = `${base}/`
+        const direct = new Map<string, { name: string; type: 'file' | 'directory'; size?: number }>()
+        for (const entry of tree) {
+          if (!entry.path.startsWith(prefix)) continue
+          const rest = entry.path.slice(prefix.length)
+          if (!rest || rest.includes('/')) continue // deeper levels show as we navigate
+          direct.set(rest, { name: rest, type: entry.type === 'dir' ? 'directory' : 'file', size: entry.size })
+        }
+        return [...direct.values()].sort((a, b) => {
+          if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+          return a.name.localeCompare(b.name)
+        })
+      }
+    } catch {
+      // fall through to local listing
+    }
+  }
+  // Global-archive users: make sure our copy is not stale before listing.
+  await refreshFilesIfChanged()
   const target = dirPath ? getFilePath(slug, dirPath) : getTeamPath(slug)
   try {
     const entries = await fs.readdir(target, { withFileTypes: true })

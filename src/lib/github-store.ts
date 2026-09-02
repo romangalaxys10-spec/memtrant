@@ -122,3 +122,26 @@ export async function validateRepoAccess(ctx: GhCtx): Promise<boolean> {
   const body = await res.json().catch(() => null)
   return !!body?.permissions?.push
 }
+
+/** Full file tree of the paired repo (for the data explorer). */
+export async function ghListTree(ctx: GhCtx): Promise<{ path: string; type: 'file' | 'dir'; size?: number }[] | null> {
+  assertCtx(ctx)
+  const branch = ctx.branch || 'main'
+  if (!BRANCH_RE.test(branch)) throw new Error('invalid branch')
+  const url = new URL(`${API_BASE}/repos/${ctx.repo}/git/trees/${branch}`)
+  url.searchParams.set('recursive', '1')
+  const res = await fetch(url, {
+    redirect: 'error',
+    headers: {
+      Authorization: `Bearer ${ctx.token}`,
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'memtrant-user-storage',
+    },
+  })
+  if (!res.ok) return null
+  const body = await res.json().catch(() => null)
+  if (!body?.tree) return null
+  return body.tree
+    .filter((t: any) => t.type === 'blob' || t.type === 'tree')
+    .map((t: any) => ({ path: t.path as string, type: t.type === 'tree' ? 'dir' : 'file', size: t.size }))
+}
