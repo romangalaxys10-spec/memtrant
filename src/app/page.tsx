@@ -571,7 +571,7 @@ export default function Home() {
   const [inviteAgentRole, setInviteAgentRole] = useState<AgentRole>('worker')
   const [inviteExpiryHours, setInviteExpiryHours] = useState('24')
   const [inviteResult, setInviteResult] = useState<{ code: string; token: string; teamName?: string; slug?: string; role?: string } | null>(null)
-  const [promptModal, setPromptModal] = useState<string | null>(null)
+  const [promptModal, setPromptModal] = useState<{ content: string; banner: string } | null>(null)
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function copyToClipboard(text: string) {
@@ -853,6 +853,40 @@ export default function Home() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, teamTab, selectedTeam?.slug])
+
+  // Welcome message for HUMAN invites: login details + what they can do.
+  function buildHumanInvitePrompt(inviteCode: string, username: string, loginToken: string): string {
+    return `Welcome to MemTrant! 🧠
+
+You've been invited to a team on MemTrant — a shared memory and task
+server where humans and AI agents work together.
+
+── YOUR LOGIN ──────────────────────────────────────────────
+App:          https://memtrant.vercel.app
+Username:     ${username}
+Login Token:  ${loginToken}
+Invite Code:  ${inviteCode}
+
+── HOW TO LOG IN ───────────────────────────────────────────
+1. Open https://memtrant.vercel.app
+2. Switch to "Login" (not Sign Up)
+3. Enter the Username and Login Token exactly as shown above
+4. You'll land on your dashboard — your session stays active
+
+── WHAT YOU CAN DO ─────────────────────────────────────────
+• Create teams and manage them (you own the teams you create)
+• Invite AI agents to a team — each invite generates a
+  ready-to-paste "join prompt"; send it to any AI agent and it
+  joins and starts working by itself
+• Browse stored memories in the Data Explorer
+• Read/write team memory files in the team's Memory tab
+• (Optional) Pair your own private GitHub repo in Settings →
+  GitHub Brain, so your team's files sync to YOUR GitHub
+
+── KEEP YOUR TOKEN SAFE ────────────────────────────────────
+Your Login Token IS your password. Don't share it with anyone
+except your own devices.`
+  }
 
   // ── Invites ──────────────────────────────────────────────────────────────
   // Ready-to-paste prompt: the human sends this to their AI agent, which then
@@ -1887,7 +1921,7 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
                                 <button
                                   onClick={() => {
                                     const prompt = buildAgentJoinPrompt(inv.code, selectedTeam.name, selectedTeam.slug, inv.role || 'worker')
-                                    setPromptModal(prompt)
+                                    setPromptModal({ content: prompt, banner: 'Copied! Now paste it to your agent.' })
                                     copyToClipboard(prompt)
                                   }}
                                   title="View / copy agent join prompt"
@@ -2167,22 +2201,22 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
         )}
       </AnimatePresence>
 
-      {/* ── Agent Join Prompt Modal ── */}
+      {/* ── Agent/Human Join Prompt Modal ── */}
       <AnimatePresence>
         {promptModal && (
           <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setPromptModal(null)}>
             <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-zinc-100">🤖 Agent Join Prompt</h2>
+                <h2 className="text-lg font-bold text-zinc-100">{promptModal.banner.includes('agent') ? '🤖 Agent Join Prompt' : '👋 Welcome Prompt'}</h2>
                 <button onClick={() => setPromptModal(null)} className="text-zinc-600 hover:text-zinc-200 transition-colors duration-200 text-lg leading-none">✕</button>
               </div>
               <div className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 mb-4">
                 <span className="text-emerald-400">✅</span>
-                <span className="text-sm text-emerald-300 font-medium">Copied! Now paste it to your agent.</span>
+                <span className="text-sm text-emerald-300 font-medium">{promptModal.banner}</span>
               </div>
-              <pre className="bg-black/40 rounded-xl p-4 text-[11px] text-zinc-300 whitespace-pre-wrap font-mono max-h-80 overflow-y-auto mb-4">{promptModal}</pre>
+              <pre className="bg-black/40 rounded-xl p-4 text-[11px] text-zinc-300 whitespace-pre-wrap font-mono max-h-80 overflow-y-auto mb-4">{promptModal.content}</pre>
               <div className="flex gap-2">
-                <button onClick={() => copyToClipboard(promptModal)} className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20">
+                <button onClick={() => copyToClipboard(promptModal.content)} className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20">
                   {copiedFeedback || 'Copy again'}
                 </button>
                 <button onClick={() => setPromptModal(null)} className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-white/[0.04] border border-white/[0.08] text-zinc-300 hover:text-zinc-100">
@@ -2303,10 +2337,25 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
               <div className="bg-red-500/[0.08] border border-red-500/20 rounded-xl p-4 mb-5">
                 <p className="text-xs text-red-400 font-medium">{t('modal.shareWarning')}</p>
               </div>
+              {humanInviteResult.username && (
+                <div className="bg-black/40 rounded-xl p-4 mb-5">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-xs text-zinc-600">👋 Welcome prompt — send this to your teammate</div>
+                    <button onClick={() => {
+                      const p = buildHumanInvitePrompt(humanInviteResult.code, humanInviteResult.username, humanInviteResult.token)
+                      setPromptModal({ content: p, banner: 'Copied! Now send these login details to your teammate.' })
+                      copyToClipboard(p)
+                    }} className="text-xs text-emerald-400 hover:text-emerald-300 px-2 py-0.5 rounded-lg hover:bg-emerald-500/10">
+                      {copiedFeedback || 'View / Copy'}
+                    </button>
+                  </div>
+                  <pre className="text-[11px] text-zinc-400 whitespace-pre-wrap font-mono max-h-40 overflow-y-auto">{buildHumanInvitePrompt(humanInviteResult.code, humanInviteResult.username, humanInviteResult.token)}</pre>
+                </div>
+              )}
               <div className="flex gap-2">
                 <button onClick={() => {
                   const text = humanInviteResult.username
-                    ? `Invite Code: ${humanInviteResult.code}\nUsername: ${humanInviteResult.username}\nLogin Token: ${humanInviteResult.token}`
+                    ? buildHumanInvitePrompt(humanInviteResult.code, humanInviteResult.username, humanInviteResult.token)
                     : `Invite Code: ${humanInviteResult.code}\nCredentials: ${humanInviteResult.credentials}`
                   copyToClipboard(text)
                 }} className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20">
@@ -2314,7 +2363,7 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
                 </button>
                 <button onClick={() => downloadAsFile(
                   humanInviteResult.username
-                    ? `Invite Code: ${humanInviteResult.code}\nUsername: ${humanInviteResult.username}\nLogin Token: ${humanInviteResult.token}\n`
+                    ? buildHumanInvitePrompt(humanInviteResult.code, humanInviteResult.username, humanInviteResult.token) + '\n'
                     : `Invite Code: ${humanInviteResult.code}\nCredentials: ${humanInviteResult.credentials}\n`,
                   `memtrant-human-invite-${humanInviteResult.code}.txt`
                 )} className="flex-1 py-2.5 rounded-2xl text-sm font-medium bg-white/[0.03] border border-white/[0.08] text-zinc-300 hover:border-white/[0.15] transition-all duration-200">
