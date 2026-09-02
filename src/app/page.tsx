@@ -397,6 +397,104 @@ function DataExplorerCard({ loginToken }: { loginToken: string }) {
   )
 }
 
+// ── Agent Data Section (inside agent modal) ────────────────────────────────
+function AgentDataSection({ loginToken, teamSlug, agentId }: { loginToken: string; teamSlug: string; agentId: string }) {
+  const [data, setData] = useState<{ assigned: { title: string; status: string }[]; created: { title: string; status: string }[] } | null>(null)
+  const [files, setFiles] = useState<{ name: string; size?: number }[]>([])
+  const [open, setOpen] = useState(false)
+  const [fileContent, setFileContent] = useState<{ path: string; content: string } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/explorer/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${loginToken}` },
+      body: JSON.stringify({ slug: teamSlug, agentId }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setData({ assigned: d.assigned || [], created: d.created || [] }))
+      .catch(() => {})
+    fetch('/api/explorer', { headers: { Authorization: `Bearer ${loginToken}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const team = (d?.teams || []).find((t: any) => t.slug === teamSlug)
+        setFiles(team ? team.files : [])
+      })
+      .catch(() => {})
+  }, [loginToken, teamSlug, agentId])
+
+  async function openFile(path: string) {
+    setFileContent({ path, content: 'Loading…' })
+    try {
+      const res = await fetch('/api/explorer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${loginToken}` },
+        body: JSON.stringify({ slug: teamSlug, path }),
+      })
+      const d = await res.json()
+      setFileContent(res.ok ? { path, content: d.content } : { path, content: d.error || 'Failed to load' })
+    } catch {
+      setFileContent({ path, content: 'Network error' })
+    }
+  }
+
+  return (
+    <div className="mb-5">
+      <h3 className="text-sm font-semibold text-zinc-300 mb-2">🗂 Data & Tasks</h3>
+      {data && (data.assigned.length > 0 || data.created.length > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
+            <div className="text-[10px] uppercase tracking-wide text-zinc-600 mb-1.5">Assigned to agent</div>
+            <ul className="space-y-1">
+              {data.assigned.map((t, i) => (
+                <li key={i} className="text-xs text-zinc-300 truncate">
+                  <span className={t.status === 'done' ? 'text-emerald-400' : 'text-amber-400'}>●</span> {t.title}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
+            <div className="text-[10px] uppercase tracking-wide text-zinc-600 mb-1.5">Created by agent</div>
+            <ul className="space-y-1">
+              {data.created.map((t, i) => (
+                <li key={i} className="text-xs text-zinc-300 truncate">✏️ {t.title}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
+        <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between text-left">
+          <span className="text-xs text-zinc-400">📄 Team memory files this agent can access ({files.length})</span>
+          <span className="text-zinc-600 text-xs">{open ? '▾' : '▸'}</span>
+        </button>
+        {open && (
+          <div className="mt-2">
+            {files.length === 0 && <p className="text-xs text-zinc-600">No files yet.</p>}
+            <ul className="space-y-1">
+              {files.map((f) => (
+                <li key={f.name}>
+                  <button
+                    onClick={() => openFile(f.name)}
+                    className={`text-xs font-mono hover:text-emerald-400 transition-colors ${fileContent?.path === f.name ? 'text-emerald-400' : 'text-zinc-400'}`}
+                  >
+                    📄 {f.name}{f.size !== undefined && <span className="text-zinc-600 ml-2">{f.size} B</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {fileContent && (
+              <div className="mt-2 rounded-lg bg-black/40 border border-white/[0.06] p-3 overflow-x-auto max-h-56 overflow-y-auto">
+                <div className="text-[10px] text-zinc-600 font-mono mb-1">{fileContent.path}</div>
+                <pre className="text-xs text-zinc-300 whitespace-pre-wrap font-mono">{fileContent.content}</pre>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Home Component ─────────────────────────────────────────────────────────
 export default function Home() {
   // ── i18n State ─────────────────────────────────────────────────────────
@@ -2200,6 +2298,11 @@ curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
                   <div className="text-sm font-medium text-zinc-300">{new Date(selectedAgent.createdAt).toLocaleDateString()}</div>
                 </div>
               </div>
+
+              {/* Agent data explorer */}
+              {selectedTeam && (
+                <AgentDataSection loginToken={currentLoginToken} teamSlug={selectedTeam.slug} agentId={selectedAgent.id} />
+              )}
 
               {/* Agent Token (Brain) */}
               <div className="mb-5">
