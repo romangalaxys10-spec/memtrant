@@ -510,6 +510,92 @@ export default function Home() {
     URL.revokeObjectURL(url)
   }
 
+  // ── Activation prompt generator ──────────────────────────────────────────
+  function generateActivationPrompt(agent: Agent) {
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+    const team = selectedTeam!
+    return `# MemTrant Agent Activation Prompt
+
+You are **${agent.name}**, a ${agent.role} agent in the team **"${team.name}"**.
+
+## Your Identity
+- Name: ${agent.name}
+- Role: ${agent.role}
+- Team: ${team.name} (${team.slug})
+
+## Your Authentication Token
+\`\`\`
+${agent.token}
+\`\`\`
+**NEVER** share this token. It is your unique credential for all API calls.
+
+## MemTrant API Base URL
+\`\`\`
+${baseUrl}
+\`\`\`
+
+## Available API Endpoints
+
+All requests must include the header: \`Authorization: Bearer ${agent.token}\`
+
+### 📁 Shared Memory (File Storage)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| PUT | /api/t/${team.slug}/memory/<path> | Store a file |
+| GET | /api/t/${team.slug}/memory/<path> | Read a file |
+| GET | /api/t/${team.slug}/memory/ | Browse directory |
+| DELETE | /api/t/${team.slug}/memory/<path> | Delete a file |
+
+### 📋 Instructions (Tasks)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/teams/${team.slug}/instructions | List all instructions |
+| POST | /api/teams/${team.slug}/instructions | Create a new instruction |
+| PATCH | /api/teams/${team.slug}/instructions/:id | Update instruction status |
+
+### 🤖 Agents
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/teams/${team.slug}/agents | List team agents |
+
+## How to Work
+
+1. **Check for instructions**: Periodically fetch your assigned tasks via \`GET /api/teams/${team.slug}/instructions\`. Look for instructions assigned to you.
+2. **Read shared memory**: Use \`GET /api/t/${team.slug}/memory/<path>\` to read context files written by other agents.
+3. **Write to shared memory**: Use \`PUT /api/t/${team.slug}/memory/<path>\` to store your findings, progress, or results.
+4. **Update task status**: When you start working on a task, update it to \`in_progress\`. When done, set it to \`done\` (or \`failed\` if blocked).
+5. **Create tasks**: If you discover new work items, create instructions for yourself or other agents.
+
+## Example Workflow
+\`\`\`bash
+# Read shared context
+curl -H "Authorization: Bearer ${agent.token}" \
+  ${baseUrl}/api/t/${team.slug}/memory/context.md
+
+# Write your findings
+curl -X PUT -H "Authorization: Bearer ${agent.token}" \
+  -d "Found 3 issues in the codebase" \
+  ${baseUrl}/api/t/${team.slug}/memory/analysis/results.md
+
+# Get your assigned tasks
+curl -H "Authorization: Bearer ${agent.token}" \
+  ${baseUrl}/api/teams/${team.slug}/instructions
+
+# Update a task status
+curl -X PATCH -H "Authorization: Bearer ${agent.token}" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"done"}' \
+  ${baseUrl}/api/teams/${team.slug}/instructions/<instruction-id>
+\`\`\`
+
+## Behavior Guidelines
+- Always check for new instructions before starting work.
+- Store important findings in shared memory so other agents can access them.
+- Update task status promptly so the team lead can track progress.
+- If blocked, update the task to \`failed\` with a description of what's needed.
+- Coordinate with other agents through the shared memory layer.`
+  }
+
   // ── Team tabs ────────────────────────────────────────────────────────────
   const tabItems: { key: TeamTab; label: string; icon: string }[] = [
     { key: 'overview', label: t('team.tabOverview'), icon: '📊' },
@@ -1786,7 +1872,7 @@ export default function Home() {
       <AnimatePresence>
         {selectedAgent && (
           <motion.div {...modalOverlay} className="fixed inset-0 bg-black/50 backdrop-blur-xl flex items-center justify-center p-4 z-50" onClick={() => setSelectedAgent(null)}>
-            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <motion.div {...modalContent} className="apple-glass-strong rounded-3xl p-8 w-full max-w-xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -1854,6 +1940,25 @@ export default function Home() {
                   </div>
                 </div>
               )}
+
+              {/* Activation Prompt */}
+              <div className="mb-5">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-zinc-300">🚀 {t('modal.activationPrompt')}</h3>
+                </div>
+                <p className="text-xs text-zinc-600 mb-3 leading-relaxed">{t('modal.activationPromptDesc')}</p>
+                <pre className="bg-black/40 rounded-xl p-4 text-[11px] text-zinc-300 overflow-auto max-h-64 font-mono whitespace-pre-wrap leading-relaxed">{generateActivationPrompt(selectedAgent)}</pre>
+                <div className="flex gap-2 mt-3">
+                  <button onClick={() => copyToClipboard(generateActivationPrompt(selectedAgent))}
+                    className="flex-1 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-lg shadow-emerald-500/20">
+                    {copiedFeedback || t('modal.copyPrompt')}
+                  </button>
+                  <button onClick={() => downloadAsFile(generateActivationPrompt(selectedAgent), `memtrant-${selectedAgent.name.toLowerCase().replace(/\s+/g, '-')}-prompt.txt`)}
+                    className="flex-1 py-2 rounded-xl text-xs font-medium bg-white/[0.03] border border-white/[0.08] text-zinc-400 hover:text-zinc-200 hover:border-white/[0.15] transition-all duration-200">
+                    {t('modal.downloadPrompt')}
+                  </button>
+                </div>
+              </div>
 
               {/* Close */}
               <button onClick={() => setSelectedAgent(null)}

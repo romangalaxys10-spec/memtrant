@@ -1331,6 +1331,34 @@ export const translations: Record<string, Record<Lang, string>> = {
     ar: 'انقر على وكيل لعرض تفاصيله',
     he: 'לחץ על סוכן להצגת פרטיו',
   },
+  'modal.activationPrompt': {
+    en: 'Activation Prompt',
+    ru: 'Промпт активации',
+    ka: 'აქტივაციის პრომპტი',
+    ar: 'موجه التنشيط',
+    he: 'הנחיית הפעלה',
+  },
+  'modal.activationPromptDesc': {
+    en: 'Copy this system prompt and paste it into your AI agent (Claude, GPT, etc.) to connect it to this MemTrant instance.',
+    ru: 'Скопируйте этот системный промпт и вставьте его в вашего ИИ-агента (Claude, GPT и т.д.) для подключения к MemTrant.',
+    ka: 'კოპირეთ ეს სისტემური პრომპტი და ჩასვით თქვენს AI აგენტში (Claude, GPT და ა.შ.) MemTrant-თან დასაკავშირებლად.',
+    ar: 'انسخ موجه النظام هذا والصقه في وكيل الذكاء الاصطناعي (Claude, GPT، إلخ) لتوصيله بـ MemTrant.',
+    he: 'העתק הנחיית מערכת זו והדבק אותה בסוכן ה-AI (Claude, GPT וכו\') כדי לחבר אותו ל-MemTrant.',
+  },
+  'modal.copyPrompt': {
+    en: 'Copy Full Prompt',
+    ru: 'Копировать промпт',
+    ka: 'პრომპტის კოპირება',
+    ar: 'نسخ الموجه الكامل',
+    he: 'העתק הנחיה מלאה',
+  },
+  'modal.downloadPrompt': {
+    en: 'Download as .txt',
+    ru: 'Скачать .txt',
+    ka: 'ჩამოტვირთვა .txt',
+    ar: 'تحميل كـ .txt',
+    he: 'הורדה כ-.txt',
+  },
 
   // ── Time ago ──────────────────────────────────────────────────────────────
   'time.justNow': {
