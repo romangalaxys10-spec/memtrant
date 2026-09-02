@@ -55,8 +55,8 @@ model Instruction {
   priority   String   @default("normal")
   assigneeId String?
   assignee   Agent?   @relation("AssignedInstructions", fields: [assigneeId], references: [id])
-  creatorId  String
-  creator    Agent    @relation("CreatorInstructions", fields: [creatorId], references: [id])
+  creatorId  String?
+  creator    Agent?   @relation("CreatorInstructions", fields: [creatorId], references: [id])
   teamId     String
   team       Team     @relation(fields: [teamId], references: [id])
   createdAt  DateTime @default(now())

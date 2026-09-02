@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { authenticateTeam } from '@/lib/auth'
+import { authenticateAny } from '@/lib/auth'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string; id: string }> }) {
   try {
     const { slug, id } = await params
-    const auth = await authenticateTeam(req)
+    const auth = await authenticateAny(req)
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const team = await db.team.findUnique({ where: { slug } })
-    if (!team || team.ownerToken !== auth.token) {
+    if (!team || (auth.type === 'user' ? team.userId !== auth.user.id : team.ownerToken !== auth.token)) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
     }
 
@@ -33,13 +33,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ slug: string; id: string }> }) {
   try {
     const { slug, id } = await params
-    const auth = await authenticateTeam(req)
+    const auth = await authenticateAny(req)
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const team = await db.team.findUnique({ where: { slug } })
-    if (!team || team.ownerToken !== auth.token) {
+    if (!team || (auth.type === 'user' ? team.userId !== auth.user.id : team.ownerToken !== auth.token)) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
     }
 
@@ -65,13 +65,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ slug: string; id: string }> }) {
   try {
     const { slug, id } = await params
-    const auth = await authenticateTeam(req)
+    const auth = await authenticateAny(req)
     if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const team = await db.team.findUnique({ where: { slug } })
-    if (!team || team.ownerToken !== auth.token) {
+    if (!team || (auth.type === 'user' ? team.userId !== auth.user.id : team.ownerToken !== auth.token)) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
     }
 

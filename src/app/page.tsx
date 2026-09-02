@@ -327,17 +327,18 @@ export default function Home() {
     setInvites([])
     setHumanInviteResult(null)
     try {
+      const authHeaders = { Authorization: `Bearer ${currentLoginToken}` }
       const [teamRes, agentRes, instRes] = await Promise.all([
-        fetch(`${API}/api/teams/${slug}`),
-        fetch(`${API}/api/teams/${slug}/agents`),
-        fetch(`${API}/api/teams/${slug}/instructions`),
+        fetch(`${API}/api/teams/${slug}`, { headers: authHeaders }),
+        fetch(`${API}/api/teams/${slug}/agents`, { headers: authHeaders }),
+        fetch(`${API}/api/teams/${slug}/instructions`, { headers: authHeaders }),
       ])
       const teamData = await teamRes.json()
-      setSelectedTeam(teamData)
+      setSelectedTeam(teamData.team || teamData)
       const agentData = await agentRes.json()
-      setAgents(Array.isArray(agentData) ? agentData : [])
+      setAgents(Array.isArray(agentData) ? agentData : agentData.agents || [])
       const instData = await instRes.json()
-      setInstructions(Array.isArray(instData) ? instData : [])
+      setInstructions(Array.isArray(instData) ? instData : instData.instructions || [])
     } catch { /* ignore */ }
     finally { setTeamLoading(false) }
   }
@@ -353,21 +354,21 @@ export default function Home() {
     try {
       const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/agents`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentLoginToken}` },
         body: JSON.stringify({ name: newAgentName, role: newAgentRole }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
       setShowNewAgent(false)
       setNewAgentName('')
-      setAgents(prev => [...prev, data])
+      setAgents(prev => [...prev, data.agent || data])
     } catch (e: any) { alert(e.message) }
   }
 
   async function removeAgent(agentId: string) {
     if (!confirm(t('modal.confirmRemoveAgent'))) return
     try {
-      await fetch(`${API}/api/teams/${selectedTeam!.slug}/agents/${agentId}`, { method: 'DELETE' })
+      await fetch(`${API}/api/teams/${selectedTeam!.slug}/agents/${agentId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${currentLoginToken}` } })
       setAgents(prev => prev.filter(a => a.id !== agentId))
     } catch { /* ignore */ }
   }
@@ -376,11 +377,12 @@ export default function Home() {
     try {
       const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/agents/${agentId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentLoginToken}` },
         body: JSON.stringify({ role }),
       })
       const data = await res.json()
-      setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...data } : a))
+      const updatedAgent = data.agent || data
+      setAgents(prev => prev.map(a => a.id === agentId ? { ...a, ...updatedAgent } : a))
     } catch { /* ignore */ }
   }
 
@@ -389,7 +391,7 @@ export default function Home() {
     try {
       const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/instructions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentLoginToken}` },
         body: JSON.stringify({
           title: newInstTitle, content: newInstContent, priority: newInstPriority,
           assigneeId: newInstAssigneeId || null,
@@ -402,7 +404,7 @@ export default function Home() {
       setNewInstContent('')
       setNewInstPriority('normal')
       setNewInstAssigneeId('')
-      setInstructions(prev => [data, ...prev])
+      setInstructions(prev => [data.instruction || data, ...prev])
     } catch (e: any) { alert(e.message) }
   }
 
@@ -410,11 +412,12 @@ export default function Home() {
     try {
       const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/instructions/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentLoginToken}` },
         body: JSON.stringify({ status }),
       })
       const data = await res.json()
-      setInstructions(prev => prev.map(i => i.id === id ? { ...i, ...data } : i))
+      const updatedInst = data.instruction || data
+      setInstructions(prev => prev.map(i => i.id === id ? { ...i, ...updatedInst } : i))
     } catch { /* ignore */ }
   }
 
@@ -422,7 +425,7 @@ export default function Home() {
   async function deleteTeam(slug: string) {
     if (!confirm(t('modal.confirmDeleteTeam'))) return
     try {
-      await fetch(`${API}/api/teams/${slug}`, { method: 'DELETE' })
+      await fetch(`${API}/api/teams/${slug}`, { method: 'DELETE', headers: { Authorization: `Bearer ${currentLoginToken}` } })
       setTeams(prev => prev.filter(t => t.slug !== slug))
       setView('dashboard')
     } catch { /* ignore */ }
@@ -434,7 +437,7 @@ export default function Home() {
     setPreviewContent('')
     setPreviewName('')
     try {
-      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files/${encodeURIComponent(path)}`)
+      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files/${encodeURIComponent(path)}`, { headers: { Authorization: `Bearer ${currentLoginToken}` } })
       const data = await res.json()
       setFiles(Array.isArray(data) ? data : data.files || [])
     } catch { setFiles([]) }
@@ -444,7 +447,7 @@ export default function Home() {
     const fullPath = memoryPath ? `${memoryPath}/${fileName}` : fileName
     setPreviewName(fullPath)
     try {
-      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files/${encodeURIComponent(fullPath)}`)
+      const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/files/${encodeURIComponent(fullPath)}`, { headers: { Authorization: `Bearer ${currentLoginToken}` } })
       const text = await res.text()
       setPreviewContent(typeof text === 'string' ? text : JSON.stringify(text, null, 2))
     } catch { setPreviewContent(t('modal.fileLoadError')) }
@@ -454,7 +457,7 @@ export default function Home() {
   async function loadInvites(slug: string) {
     try {
       const res = await fetch(`${API}/api/teams/${slug}/invites`, {
-        headers: { Authorization: `Bearer ${selectedTeam?.ownerToken}` },
+        headers: { Authorization: `Bearer ${currentLoginToken}` },
       })
       const data = await res.json()
       setInvites(Array.isArray(data) ? data : data.invites || [])
@@ -471,7 +474,7 @@ export default function Home() {
       }
       const res = await fetch(`${API}/api/teams/${selectedTeam!.slug}/invites`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${selectedTeam!.ownerToken}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${currentLoginToken}` },
         body: JSON.stringify(body),
       })
       const data = await res.json()

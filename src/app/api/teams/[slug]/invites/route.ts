@@ -1,17 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { authenticateAny } from '@/lib/auth'
 import { generateInviteCode, generateSlug, generateToken } from '@/lib/token'
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params
-    const authHeader = (req.headers.get('authorization') || '').replace('Bearer ', '').trim()
-    const queryTeam = await db.team.findUnique({ where: { slug } })
-    if (!queryTeam || (queryTeam.ownerToken !== authHeader && !authHeader.startsWith('owner_'))) {
+    const auth = await authenticateAny(req)
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const team = await db.team.findUnique({ where: { slug } })
+    if (!team || (auth.type === 'user' ? team.userId !== auth.user.id : team.ownerToken !== auth.token)) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 })
     }
+
     const invites = await db.invite.findMany({
-      where: { teamId: queryTeam.id },
+      where: { teamId: team.id },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json({ invites })
@@ -24,11 +30,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 export async function POST(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params
-    const authHeader = (req.headers.get('authorization') || '').replace('Bearer ', '').trim()
-    const team = await db.team.findUnique({ where: { slug } })
-    if (!team || team.ownerToken !== authHeader) {
+    const auth = await authenticateAny(req)
+    if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const team = await db.team.findUnique({ where: { slug } })
+    if (!team || (auth.type === 'user' ? team.userId !== auth.user.id : team.ownerToken !== auth.token)) {
+      return NextResponse.json({ error: 'Team not found' }, { status: 404 })
+    }
+
     const body = await req.json()
     const { type, role, expiresIn } = body
     if (!type || !['agent', 'human'].includes(type)) {

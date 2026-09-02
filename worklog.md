@@ -178,3 +178,55 @@ Stage Summary:
 - Added animated particle field in hero background
 - All new content fully i18n'd across 5 languages
 - File changes: page.tsx (+200 lines), globals.css (+100 lines), i18n.ts (+250 lines)
+
+---
+Task ID: 2-a
+Agent: Backend Auth Fix Agent
+Task: Fix all backend API routes from authenticateTeam to authenticateAny
+
+Work Log:
+- Fixed `src/app/api/teams/[slug]/route.ts`: Changed import from `authenticateTeam` to `authenticateAny`, updated GET and DELETE handlers with dual auth ownership check
+- Fixed `src/app/api/teams/[slug]/agents/route.ts`: Changed import and auth, updated GET and POST handlers with dual auth ownership check
+- Fixed `src/app/api/teams/[slug]/agents/[agentId]/route.ts`: Changed import and auth, updated GET, PATCH, DELETE handlers with dual auth ownership check
+- Fixed `src/app/api/teams/[slug]/instructions/route.ts`: Changed import and auth, updated GET and POST handlers with dual auth ownership check
+- Fixed `src/app/api/teams/[slug]/instructions/[id]/route.ts`: Changed import and auth, updated GET, PATCH, DELETE handlers with dual auth ownership check
+- Fixed `src/app/api/teams/[slug]/invites/route.ts`: Replaced inline auth with `authenticateAny`, updated GET and POST with dual auth ownership check
+- Checked `/api/t/[slug]/` routes — all use `authenticateAgent` (correct, no fix needed)
+- Verified `authenticateTeam` is no longer imported by any route file
+
+Stage Summary:
+- 6 files fixed
+- All `/api/teams/[slug]/...` routes now support both loginToken (user auth) and ownerToken (team auth)
+- Ownership check pattern: `auth.type === 'user' ? team.userId !== auth.user.id : team.ownerToken !== auth.token`
+- No changes needed to agent-facing `/api/t/` routes (they use authenticateAgent)
+---
+Task ID: 2
+Agent: Main Agent (Full QA)
+Task: Full end-to-end QA and bug fixes
+
+Work Log:
+- Investigated 'add agent gives Unauthorized' error
+- Found TWO root causes:
+  1. Backend: 6 team sub-route files used authenticateTeam() (ownerToken only) instead of authenticateAny() (loginToken or ownerToken)
+  2. Frontend: 11 API calls were missing Authorization headers entirely
+- Fixed all 6 backend routes: teams/[slug], agents, agents/[agentId], instructions, instructions/[id], invites
+- Fixed all 11 frontend API calls to include Authorization: Bearer ${currentLoginToken}
+- Found and fixed response unwrapping bugs:
+  - setSelectedTeam(teamData) -> setSelectedTeam(teamData.team || teamData) 
+  - setAgents(Array.isArray ? x : []) -> setAgents(Array.isArray ? x : x.agents || [])
+  - setInstructions similar fix
+  - handleAddAgent: setAgents(prev => [...prev, data]) -> data.agent || data
+  - handleCreateInstruction: data -> data.instruction || data
+  - updateAgentRole: data -> data.agent || data
+  - updateInstructionStatus: data -> data.instruction || data
+- Found and fixed Prisma schema bug: Instruction.creatorId was required but API doesn't always provide it
+  - Changed creatorId String -> String? in schema.prisma
+  - Ran db:push to migrate
+- Ran browser E2E test confirming: register ✅, create team ✅, open team ✅, team detail loads ✅
+- Server logs confirmed auth working: GET /api/teams 200, GET /api/teams/slug 200, GET agents 200, GET instructions 200
+
+Stage Summary:
+- 13 bugs found and fixed across 8 files
+- Files modified: 6 API route files, page.tsx (frontend), schema.prisma, globals.css (unrelated to QA)
+- Core auth issue: authenticateTeam only checked ownerToken, not user loginToken
+- Core data issue: API responses wrapped in {agent: ...} / {instruction: ...} / {team: ...} but frontend didn't unwrap
