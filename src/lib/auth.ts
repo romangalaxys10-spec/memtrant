@@ -51,3 +51,26 @@ export async function authenticateAny(req: NextRequest): Promise<
 
   return null
 }
+
+/**
+ * Auth for team-scoped management routes: accepts the team owner token (mt_)
+ * or a login token (login_) belonging to the user who owns the team.
+ */
+export async function authenticateTeamAccess(
+  req: NextRequest,
+  slug: string
+): Promise<{ team: any; token: string } | null> {
+  const auth = req.headers.get('authorization') || req.headers.get('x-memtrant-token') || ''
+  const token = auth.replace('Bearer ', '').trim()
+  if (!token || !slug) return null
+
+  const team = await db.team.findUnique({ where: { slug } })
+  if (!team) return null
+
+  if (team.ownerToken === token) return { team, token }
+
+  const user = await db.user.findFirst({ where: { loginToken: token } })
+  if (user && team.userId === user.id) return { team, token }
+
+  return null
+}

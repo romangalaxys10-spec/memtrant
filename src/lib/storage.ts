@@ -1,7 +1,8 @@
 import { promises as fs } from 'fs'
 import path from 'path'
 
-const BASE_PATH = process.env.STORAGE_PATH || '/home/z/my-project/data/memtrant'
+// Vercel's filesystem is read-only except /tmp; locally fall back to ./data
+const BASE_PATH = process.env.STORAGE_PATH || (process.env.VERCEL ? '/tmp/memtrant-data' : './data/memtrant')
 
 export function getTeamPath(slug: string): string {
   return path.join(BASE_PATH, slug)
