@@ -15,7 +15,8 @@ export function getFilePath(slug: string, filePath: string): string {
   return path.join(BASE_PATH, slug, sanitized)
 }
 
-// Relative key inside a user's paired repo (prefix carries the team slug).
+// Relative key inside a user's paired repo — the storage ctx prefix already
+// carries the "memtrant" root, the team slug comes first here.
 function relKey(slug: string, filePath: string): string {
   const sanitized = filePath.split('/').filter(Boolean).join('/').replace(/\.{2,}/g, '')
   return `${slug}/${sanitized}`

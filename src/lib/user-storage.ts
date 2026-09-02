@@ -11,7 +11,7 @@ export async function storageCtxForTeam(slug: string): Promise<GhCtx | null> {
     const user = await db.user.findUnique({ where: { id: team.userId } })
     if (!user?.githubRepo || !user.githubTokenEnc) return null
     const token = decryptSecret(user.githubTokenEnc)
-    return { repo: user.githubRepo, token, prefix: `memtrant/${slug}` }
+    return { repo: user.githubRepo, token, prefix: 'memtrant' }
   } catch {
     return null
   }
