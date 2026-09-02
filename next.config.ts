@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // standalone is for self-hosting (bun .next/standalone/server.js); Vercel
+  // builds break on its output-file tracing, so disable it there.
+  output: process.env.VERCEL ? undefined : "standalone",
   typescript: {
     ignoreBuildErrors: false,
   },
