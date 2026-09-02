@@ -1,5 +1,30 @@
 # MemTrant Worklog
 
+## Task 6 — Multi-Language UI, GitHub Badge, Z.AI Promo, Credits, Apple/Dell UI
+
+**Summary:** Complete internationalization (5 languages), new landing page sections, and design overhaul.
+
+### Files Created (1)
+- `src/lib/i18n.ts` — 1250-line self-contained i18n system. 156 translation keys × 5 languages (EN/RU/KA/AR/HE). Exports: `Lang`, `LANGUAGES`, `translations`, `isRTL()`, `getTimeAgo()`, `useT()`. Proper pluralization for RU/AR/HE. Georgian in ქართული script.
+
+### Files Modified (1)
+- `src/app/page.tsx` — Complete rewrite (1366 lines):
+  - **i18n**: All 156 strings use `t('key')` calls. Language selector in top-right on all views.
+  - **RTL**: Arabic/Hebrew set `document.documentElement.dir = 'rtl'`
+  - **GitHub Badge**: Immersive gradient banner linking to `https://github.com/romangalaxys10-spec/memtrant`
+  - **Z.AI GLM 5 Turbo**: Glowing badge + promo card with invite link `https://z.ai/subscribe?ic=R0K78RJKNW`
+  - **Credits Footer**: Developed by Roman, Telegram (@VibeCodePrompterSystem), LinkedIn, Portfolio (rommark.dev), LLM Blog (claw.rommark.dev)
+  - **Apple/Dell Design**: Larger typography, rounded-2xl cards with `bg-white/[0.03] border-white/[0.06]`, refined buttons with rounded-2xl, generous whitespace, smooth transitions
+
+### Verification
+- ✅ All 5 languages verified via browser agent (EN/RU/KA/AR/HE)
+- ✅ Language selector accessible from all views
+- ✅ GitHub badge, Z.AI promo, credits all visible
+- ✅ Auth form with token choice still works in all languages
+- ✅ ESLint clean
+
+---
+
 ## Task 5 — Fix "Unauthorized" on Create Team
 
 **Summary:** Fixed the 401 Unauthorized error when clicking "Create New Team" from the dashboard. Root cause: `/api/teams` GET/POST required `ownerToken` auth (team-level) but the frontend sent no auth header at all.
