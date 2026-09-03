@@ -44,7 +44,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
     }
 
     const body = await req.json()
-    const { title, content, assigneeId } = body
+    const { title, content, assigneeId, status, priority } = body
 
     const instruction = await db.instruction.update({
       where: { id, teamId: team.id },
@@ -52,6 +52,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sl
         ...(title !== undefined && { title }),
         ...(content !== undefined && { content }),
         ...(assigneeId !== undefined && { assigneeId }),
+        ...(status !== undefined && { status }),
+        ...(priority !== undefined && { priority }),
       },
     })
 

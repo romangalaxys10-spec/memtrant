@@ -947,12 +947,12 @@ MemTrant is a shared memory + task server for agent teams. Complete these steps:
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
-      if (type === 'human' && data.credentials) {
-        let creds: any = data.credentials
+      if (type === 'human' && (data.credentials || data.invite?.credentials)) {
+        let creds: any = data.credentials || data.invite?.credentials
         if (typeof creds === 'string') { try { creds = JSON.parse(creds) } catch { creds = { username: '', loginToken: creds } } }
         setHumanInviteResult({
           code: data.code,
-          credentials: typeof data.credentials === 'string' ? data.credentials : JSON.stringify(data.credentials),
+          credentials: typeof creds === 'string' ? creds : JSON.stringify(creds),
           username: creds.username || '',
           token: creds.loginToken || creds.token || '',
         })
